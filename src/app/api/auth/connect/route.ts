@@ -25,9 +25,9 @@ export async function GET(request: Request) {
 
     // Get the OAuth scopes based on platform
     const scopesMap: Record<string, string> = {
-        facebook: "public_profile,email,pages_manage_posts,pages_read_engagement",
-        linkedin_oidc: "openid,profile,email,w_member_social",
-        twitter: "tweet.read,tweet.write,users.read",
+        facebook: "public_profile email pages_manage_posts pages_read_engagement pages_show_list",
+        linkedin_oidc: "openid profile email w_member_social",
+        twitter: "tweet.read tweet.write users.read",
     };
 
     const { data, error } = await supabase.auth.signInWithOAuth({

@@ -11,45 +11,57 @@ This guide explains how to set up OAuth credentials for Facebook and LinkedIn in
 2. Click **Get Started** or **Log In**
 3. Accept the developer terms
 
-### Step 2: Create a New App
-1. Go to **My Apps** → **Create App**
-2. Select **"Other"** as use case
-3. Select **"Business"** as app type
-4. Enter app name: `NexFlow` and your email
-5. Click **Create App**
+### Step 2: Create a New App (CRITICAL CHOICE)
+1.  Go to **My Apps** → **Create App**.
+2.  Select **"Other"** (This is crucial, do not select the shortcut options). Click **Next**.
+3.  On the next screen, select **"Business"**.
+    > [!IMPORTANT]
+    > **Why Business?** Page permissions like `pages_manage_posts` are strictly reserved for "Business" type apps. If you select "Consumer" or "None", you will never find the Page-related use cases.
+4.  Enter app name: `NexFlow` and click **Create App**.
 
-### Step 3: Add Facebook Login
+### Step 3: Add Facebook Login for Business
 1. In your app dashboard, click **Add Product**
-2. Find **Facebook Login** → Click **Set Up**
+2. Find **Facebook Login for Business** (or standard Facebook Login if using None/Other) → Click **Set Up**
 3. Choose **Web**
 4. Enter your Site URL: `http://localhost:3000` (for development)
-5. Click **Save** → **Continue**
+5. Click **Save**
 
 ### Step 4: Configure OAuth Settings
 1. Go to **Facebook Login** → **Settings** (left sidebar)
 2. Add these **Valid OAuth Redirect URIs**:
    ```
-   http://localhost:3000/api/auth/callback/facebook
+   http://localhost:3000/api/auth/callback/platform?platform=facebook
    https://tyenkhdllxpobmwotkxc.supabase.co/auth/v1/callback
    ```
 3. Enable **Client OAuth Login** and **Web OAuth Login**
 4. Click **Save Changes**
 
-### Step 5: Get Your Credentials
+### Step 5: Add Permissions (CRITICAL - 2025 UI)
+
+Since you are in the new "Use Cases" dashboard:
+
+1.  **Add Page Permissions**:
+    *   Click **Use cases** in the left sidebar (as you have already done).
+    *   Click the **Add use cases** button (top right).
+    *   Select **Other** or search for a use case that mentions **"Manage Pages"** or **"Wider range of permissions"**.
+    *   Once added, click **Customize** or **Edit** next to it.
+    *   Search for and click **Add** for:
+        - `pages_show_list`
+        - `pages_manage_posts`
+        - `pages_read_engagement`
+
+2.  **Add Email Permission**:
+    *   On the same "Use cases" main page, find **"Authenticate and request data from users with Facebook Login"**.
+    *   Click **Customize** (as seen in your screenshot).
+    *   Find the **Permissions** section and click **Add** next to `email`.
+
+> [!NOTE]
+> While in "Development Mode", you can use these permissions as an Admin/Developer of the app without needing a full review from Facebook.
+
+### Step 6: Get Your Credentials
 1. Go to **Settings** → **Basic** (left sidebar)
 2. Copy your **App ID** → Add to `.env.local` as `FACEBOOK_APP_ID`
 3. Click **Show** next to App Secret → Add to `.env.local` as `FACEBOOK_APP_SECRET`
-
-### Step 6: Request Permissions (For Publishing)
-To publish posts, you need these permissions:
-- `pages_manage_posts` - To post on Facebook Pages
-- `pages_read_engagement` - To read post analytics
-
-1. Go to **App Review** → **Permissions and Features**
-2. Request: `pages_manage_posts`, `pages_read_engagement`
-3. Submit for review (required for production)
-
-> **Note**: For development/testing, you can use the app with your own Facebook account without review.
 
 ---
 
@@ -69,7 +81,7 @@ To publish posts, you need these permissions:
 1. Go to the **Auth** tab
 2. Under **OAuth 2.0 settings**, add **Authorized redirect URLs**:
    ```
-   http://localhost:3000/api/auth/callback/linkedin
+   http://localhost:3000/api/auth/callback/platform?platform=linkedin
    https://tyenkhdllxpobmwotkxc.supabase.co/auth/v1/callback
    ```
 3. Click **Update**
@@ -121,28 +133,18 @@ After setup, test the connections:
 
 ## 📋 Checklist
 
-- [ ] Facebook Developer account created
-- [ ] Facebook App created with App ID and Secret
-- [ ] Facebook OAuth redirect URIs configured
-- [ ] LinkedIn Developer App created
-- [ ] LinkedIn Client ID and Secret obtained
-- [ ] LinkedIn redirect URIs configured
-- [ ] Supabase Facebook provider enabled
-- [ ] Supabase LinkedIn provider enabled
+- [ ] Facebook App type is "Business" or "None" (NOT Consumer)
+- [ ] `pages_manage_posts` and `pages_show_list` added in Permissions & Features
+- [ ] OAuth Redirect URIs added to both FB/LinkedIn and Supabase
 - [ ] `.env.local` updated with all credentials
 
 ---
 
 ## 🚨 Common Issues
 
-### "App not set up" error (Facebook)
-- Make sure your app is in Development mode for testing
-- Add yourself as a Test User or App Tester
+### "Invalid Scopes" error (Facebook)
+- This usually means you chose the wrong app type (Consumer) or haven't added the permissions in "Permissions and Features".
+- Ensure you have added `email`, `pages_show_list`, `pages_manage_posts`, and `pages_read_engagement`.
 
 ### "Invalid redirect_uri" error
-- Double-check the redirect URI matches exactly (including trailing slashes)
-- Ensure the URIs are added to both the platform AND Supabase
-
-### Rate limits
-- Facebook: 200 calls/hour per user
-- LinkedIn: 100 calls/day for share API
+- Double-check the redirect URI matches exactly (including `?platform=facebook` part if using direct connection).
