@@ -59,6 +59,8 @@ export interface Pipeline {
     review_required: boolean;   // Pause for approval before posting
     reminder_minutes: number;   // Minutes before post to send reminder
     is_active: boolean;
+    last_run_at?: string;
+    next_run_at?: string;
     created_at: string;
     updated_at: string;
 }
@@ -72,6 +74,7 @@ export interface Topic {
     recycle_interval_days?: number;
     last_used_at?: string;
     sort_order: number;
+    status: "pending" | "generating" | "generated" | "skipped";
     created_at: string;
 }
 
@@ -79,15 +82,18 @@ export interface Post {
     id: string;
     topic_id: string;
     pipeline_id: string;
+    user_id: string;
     platform: Platform;
     content: string;            // Generated post text
     hashtags?: string[];
     image_url?: string;         // Generated/selected image
+    image_prompt?: string;      // Prompt used for image generation
     status: PostStatus;
     scheduled_for?: string;
     published_at?: string;
     platform_post_id?: string;  // ID from the social platform
     error_message?: string;
+    topics?: { title: string }; // Joined from topics table
     created_at: string;
     updated_at: string;
 }

@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { FREQUENCIES, DEFAULT_POST_TIMES, REMINDER_OPTIONS, PLATFORMS } from "@/lib/constants";
+import { FREQUENCIES, REMINDER_OPTIONS, PLATFORMS } from "@/lib/constants";
 import type { Platform, Frequency } from "@/lib/types";
 
 export default function NewPipelinePage() {
@@ -40,7 +40,32 @@ export default function NewPipelinePage() {
         setLoading(true);
 
         try {
-            // TODO: Save to Supabase
+            const { createPipeline } = await import("@/lib/api/db");
+
+            // Calculate initial next_run_at
+            const now = new Date();
+            const [hours, minutes] = postTime.split(":").map(Number);
+            const nextRun = new Date();
+            nextRun.setHours(hours, minutes, 0, 0);
+
+            // If time already passed today, start tomorrow
+            if (nextRun < now) {
+                nextRun.setDate(nextRun.getDate() + 1);
+            }
+
+            await createPipeline({
+                name,
+                description,
+                platforms,
+                frequency,
+                post_time: postTime,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                review_required: reviewRequired,
+                reminder_minutes: reminderMinutes,
+                is_active: true,
+                next_run_at: nextRun.toISOString()
+            });
+
             toast.success("Pipeline created successfully!");
             router.push("/dashboard/pipelines");
         } catch (error) {
@@ -108,8 +133,8 @@ export default function NewPipelinePage() {
                                     type="button"
                                     onClick={() => togglePlatform(key)}
                                     className={`flex items-center gap-3 p-4 rounded-lg border transition-all ${platforms.includes(key)
-                                            ? "border-violet-500 bg-violet-500/10"
-                                            : "border-border/50 hover:border-border"
+                                        ? "border-violet-500 bg-violet-500/10"
+                                        : "border-border/50 hover:border-border"
                                         }`}
                                 >
                                     <div
@@ -156,19 +181,16 @@ export default function NewPipelinePage() {
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label>Post Time (PKT)</Label>
-                                <Select value={postTime} onValueChange={setPostTime}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {DEFAULT_POST_TIMES.map(({ value, label }) => (
-                                            <SelectItem key={value} value={value}>
-                                                {label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="postTime">Post Time (PKT)</Label>
+                                <Input
+                                    id="postTime"
+                                    type="time"
+                                    value={postTime}
+                                    onChange={(e) => setPostTime(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Set specific time (e.g., for testing: choose 2-3 mins from now)
+                                </p>
                             </div>
                         </div>
                     </CardContent>

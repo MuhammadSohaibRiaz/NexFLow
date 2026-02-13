@@ -1,3 +1,5 @@
+"use server";
+
 import { createClient } from "@/lib/supabase/server";
 import type { Pipeline, Topic, Post, PlatformConnection } from "@/lib/types";
 
@@ -71,6 +73,29 @@ export async function deletePipeline(id: string): Promise<void> {
     if (error) throw error;
 }
 
+export async function getActivePipelines(): Promise<Pipeline[]> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from("pipelines")
+        .select("*")
+        .eq("is_active", true);
+
+    if (error) throw error;
+    return data as Pipeline[];
+}
+
+export async function getDuePipelines(): Promise<Pipeline[]> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from("pipelines")
+        .select("*")
+        .eq("is_active", true)
+        .lte("next_run_at", new Date().toISOString());
+
+    if (error) throw error;
+    return data as Pipeline[];
+}
+
 // =============================================
 // TOPICS API
 // =============================================
@@ -89,7 +114,7 @@ export async function getTopics(pipelineId: string): Promise<Topic[]> {
 
 export async function createTopic(
     pipelineId: string,
-    topic: Omit<Topic, "id" | "pipeline_id" | "created_at">
+    topic: Omit<Topic, "id" | "pipeline_id" | "created_at" | "sort_order">
 ): Promise<Topic> {
     const supabase = await createClient();
 
@@ -135,6 +160,24 @@ export async function deleteTopic(id: string): Promise<void> {
     if (error) throw error;
 }
 
+export async function getNextPendingTopic(pipelineId: string): Promise<Topic | null> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from("topics")
+        .select("*")
+        .eq("pipeline_id", pipelineId)
+        .eq("status", "pending")
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .single();
+
+    if (error) {
+        if (error.code === "PGRST116") return null;
+        throw error;
+    }
+    return data as Topic;
+}
+
 export async function reorderTopics(
     pipelineId: string,
     orderedIds: string[]
@@ -165,7 +208,7 @@ export async function getPosts(filters?: {
     platform?: string;
 }): Promise<Post[]> {
     const supabase = await createClient();
-    let query = supabase.from("posts").select("*");
+    let query = supabase.from("posts").select("*, topics(title)");
 
     if (filters?.pipelineId) {
         query = query.eq("pipeline_id", filters.pipelineId);
@@ -200,12 +243,36 @@ export async function getPost(id: string): Promise<Post | null> {
 
 export async function updatePostStatus(
     id: string,
-    status: Post["status"]
+    status: Post["status"],
+    errorMessage?: string | null
 ): Promise<Post> {
+    const supabase = await createClient();
+    const updates: any = { status };
+
+    if (errorMessage !== undefined) {
+        updates.error_message = errorMessage;
+    }
+
+    const { data, error } = await supabase
+        .from("posts")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as Post;
+}
+
+export async function schedulePost(id: string, scheduledFor: string): Promise<Post> {
     const supabase = await createClient();
     const { data, error } = await supabase
         .from("posts")
-        .update({ status })
+        .update({
+            status: "scheduled",
+            scheduled_for: scheduledFor,
+            error_message: null
+        })
         .eq("id", id)
         .select()
         .single();
@@ -220,6 +287,18 @@ export async function approvePost(id: string): Promise<Post> {
 
 export async function skipPost(id: string): Promise<Post> {
     return updatePostStatus(id, "skipped");
+}
+
+export async function createPost(post: Omit<Post, "id" | "created_at" | "updated_at" | "topics">): Promise<Post> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from("posts")
+        .insert(post)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as Post;
 }
 
 // =============================================

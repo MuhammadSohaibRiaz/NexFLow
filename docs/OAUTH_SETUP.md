@@ -11,30 +11,26 @@ This guide explains how to set up OAuth credentials for Facebook and LinkedIn in
 2. Click **Get Started** or **Log In**
 3. Accept the developer terms
 
-### Step 2: Create a New App (CRITICAL CHOICE)
+### Step 2: Create a New App
 1.  Go to **My Apps** → **Create App**.
-2.  Select **"Other"** (This is crucial, do not select the shortcut options). Click **Next**.
+2.  Select **"Other"** (at the bottom). Click **Next**.
 3.  On the next screen, select **"Business"**.
-    > [!IMPORTANT]
-    > **Why Business?** Page permissions like `pages_manage_posts` are strictly reserved for "Business" type apps. If you select "Consumer" or "None", you will never find the Page-related use cases.
 4.  Enter app name: `NexFlow` and click **Create App**.
 
-### Step 3: Add Facebook Login for Business
-1. In your app dashboard, click **Add Product**
-2. Find **Facebook Login for Business** (or standard Facebook Login if using None/Other) → Click **Set Up**
-3. Choose **Web**
-4. Enter your Site URL: `http://localhost:3000` (for development)
-5. Click **Save**
+### Step 3: Add the "Facebook Login" Product (Classic UI)
+1.  In the left sidebar, click **"Add Product"** (as seen in your screenshot).
+2.  Find **"Facebook Login"** (or Facebook Login for Business) and click **"Set Up"**.
+3.  Choose **"Web"**.
+4.  Enter Site URL: `http://localhost:3000` and click **Save**.
 
 ### Step 4: Configure OAuth Settings
-1. Go to **Facebook Login** → **Settings** (left sidebar)
-2. Add these **Valid OAuth Redirect URIs**:
-   ```
-   http://localhost:3000/api/auth/callback/platform?platform=facebook
-   https://tyenkhdllxpobmwotkxc.supabase.co/auth/v1/callback
-   ```
-3. Enable **Client OAuth Login** and **Web OAuth Login**
-4. Click **Save Changes**
+Now that the product is added, a new **"Facebook Login"** section will appear in your sidebar:
+1.  Go to **Facebook Login** → **Settings**.
+2.  Find the **"Valid OAuth Redirect URIs"** field.
+3.  Add these two URLs:
+    - `http://localhost:3000/api/auth/callback/platform?platform=facebook`
+    - `https://tyenkhdllxpobmwotkxc.supabase.co/auth/v1/callback`
+4.  Click **Save Changes**.
 
 ### Step 5: Add Permissions (CRITICAL - 2025 UI)
 
@@ -58,10 +54,15 @@ Since you are in the new "Use Cases" dashboard:
 > [!NOTE]
 > While in "Development Mode", you can use these permissions as an Admin/Developer of the app without needing a full review from Facebook.
 
-### Step 6: Get Your Credentials
-1. Go to **Settings** → **Basic** (left sidebar)
-2. Copy your **App ID** → Add to `.env.local` as `FACEBOOK_APP_ID`
-3. Click **Show** next to App Secret → Add to `.env.local` as `FACEBOOK_APP_SECRET`
+### Step 6: Get Your Credentials & Set Domains
+1.  Go to **Settings** → **Basic** (left sidebar).
+2.  **App Domains**: Add `localhost` and `tyenkhdllxpobmwotkxc.supabase.co`. (Crucial for fixing the "Can't load URL" error).
+3.  **Privacy Policy URL**: You can use `http://localhost:3000/privacy` for testing.
+4.  **Category**: Choose "Business and Pages".
+5.  Scroll to the bottom -> Click **Add Platform** -> Choose **Website**.
+    - Site URL: `http://localhost:3000`
+6.  Copy your **App ID** → Add to `.env.local` as `FACEBOOK_APP_ID`.
+7.  Click **Show** next to App Secret → Add to `.env.local` as `FACEBOOK_APP_SECRET`.
 
 ---
 
