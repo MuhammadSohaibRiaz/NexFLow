@@ -18,3 +18,4 @@ export async function GET(request: Request) {
     // Return to platforms page with error
     return NextResponse.redirect(`${origin}/dashboard/platforms?error=oauth_failed`);
 }
+//just added as a comment
