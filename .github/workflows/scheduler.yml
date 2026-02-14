@@ -3,7 +3,7 @@ name: NexFlow Scheduler
 on:
   schedule:
     # GitHub Actions typically has a 5-10 minute delay on schedules.
-    # '*/5' is the minimum reliable interval, even if '* * * * *' (1 min) is specified.
+    # '*/5' is the minimum reliable interval.
     - cron: '*/5 * * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
@@ -15,7 +15,10 @@ jobs:
         run: |
           curl -f -X GET "https://nex-flow-six.vercel.app/api/cron/generate" \
           -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-          
+
+      - name: Wait for generation to complete
+        run: sleep 15
+
       - name: Trigger Publishing Pipeline
         run: |
           curl -f -X GET "https://nex-flow-six.vercel.app/api/cron/publish" \

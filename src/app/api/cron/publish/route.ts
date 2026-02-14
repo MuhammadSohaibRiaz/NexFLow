@@ -16,7 +16,7 @@ export async function GET(request: Request) {
         const now = new Date().toISOString();
         console.log(`[Cron:Publish] Checking for posts due at or before ${now}`);
 
-        // 1. Find posts that are scheduled for NOW or in the PAST
+        // Find posts that are scheduled and due NOW or in the PAST
         const { data: posts, error } = await supabase
             .from("posts")
             .select("id, platform, scheduled_for, status")
@@ -25,34 +25,24 @@ export async function GET(request: Request) {
 
         if (error) throw error;
 
-        // Debug: check ALL scheduled posts regardless of time
-        const { data: allScheduled } = await supabase
-            .from("posts")
-            .select("id, scheduled_for")
-            .eq("status", "scheduled");
-
-        console.log(`[Cron:Publish] Total scheduled in DB: ${allScheduled?.length || 0}`);
-        if (allScheduled && allScheduled.length > 0) {
-            console.log(`[Cron:Publish] First scheduled post time: ${allScheduled[0].scheduled_for}`);
-        }
-
         if (!posts || posts.length === 0) {
-            const nextPost = allScheduled && allScheduled.length > 0
-                ? allScheduled.sort((a, b) => new Date(a.scheduled_for!).getTime() - new Date(b.scheduled_for!).getTime())[0]
-                : null;
+            // Quick peek at upcoming scheduled posts for diagnostics
+            const { count } = await supabase
+                .from("posts")
+                .select("id", { count: "exact", head: true })
+                .eq("status", "scheduled");
 
             return NextResponse.json({
                 success: true,
                 message: "No posts due for publishing right now.",
-                next_scheduled_at: nextPost?.scheduled_for || null,
                 server_time: now,
-                total_scheduled_queue: allScheduled?.length || 0
+                total_scheduled_queue: count || 0
             });
         }
 
         console.log(`[Cron:Publish] Found ${posts.length} posts to publish`);
 
-        // 2. Publish them in sequence
+        // Publish them in sequence
         const results = [];
         for (const post of posts) {
             try {

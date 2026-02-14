@@ -13,10 +13,12 @@ export type PostStatus =
     | "draft"       // Just created by AI
     | "pending"     // Awaiting review (if review enabled)
     | "approved"    // User approved, waiting to publish
+    | "generated"   // AI-generated, awaiting scheduling or publishing
     | "scheduled"   // Queued for publishing
     | "published"   // Successfully posted
     | "failed"      // Failed to publish
     | "skipped";    // Skipped by user
+
 
 // ==========================================
 // Database Types (matches Supabase schema)

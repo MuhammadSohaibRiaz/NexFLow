@@ -184,18 +184,16 @@ export async function reorderTopics(
 ): Promise<void> {
     const supabase = await createClient();
 
-    const updates = orderedIds.map((id, index) => ({
-        id,
-        sort_order: index + 1,
-    }));
-
-    for (const { id, sort_order } of updates) {
-        const { error } = await supabase
+    const updates = orderedIds.map((id, index) =>
+        supabase
             .from("topics")
-            .update({ sort_order })
-            .eq("id", id);
-        if (error) throw error;
-    }
+            .update({ sort_order: index + 1 })
+            .eq("id", id)
+    );
+
+    const results = await Promise.all(updates);
+    const firstError = results.find(r => r.error)?.error;
+    if (firstError) throw firstError;
 }
 
 // =============================================

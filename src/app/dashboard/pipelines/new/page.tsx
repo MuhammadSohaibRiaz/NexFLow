@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { FREQUENCIES, REMINDER_OPTIONS, PLATFORMS } from "@/lib/constants";
 import type { Platform, Frequency } from "@/lib/types";
+import { useEffect } from "react";
 
 export default function NewPipelinePage() {
     const router = useRouter();
@@ -26,6 +27,24 @@ export default function NewPipelinePage() {
     const [postTime, setPostTime] = useState("18:00");
     const [reviewRequired, setReviewRequired] = useState(true);
     const [reminderMinutes, setReminderMinutes] = useState(60);
+    const [connectedPlatforms, setConnectedPlatforms] = useState<Platform[]>([]);
+
+    useEffect(() => {
+        // Fetch connected platforms on mount
+        async function fetchConnections() {
+            try {
+                const { getPlatformConnections } = await import("@/lib/api/db");
+                const connections = await getPlatformConnections();
+                const connected = connections
+                    .filter(c => c.is_active)
+                    .map(c => c.platform);
+                setConnectedPlatforms(connected);
+            } catch (e) {
+                console.error("Failed to fetch connections:", e);
+            }
+        }
+        fetchConnections();
+    }, []);
 
     const togglePlatform = (platform: Platform) => {
         setPlatforms((prev) =>
@@ -127,32 +146,42 @@ export default function NewPipelinePage() {
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 gap-3">
-                            {(Object.entries(PLATFORMS) as [Platform, typeof PLATFORMS[Platform]][]).map(([key, platform]) => (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() => togglePlatform(key)}
-                                    className={`flex items-center gap-3 p-4 rounded-lg border transition-all ${platforms.includes(key)
-                                        ? "border-violet-500 bg-violet-500/10"
-                                        : "border-border/50 hover:border-border"
-                                        }`}
-                                >
-                                    <div
-                                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                        style={{ backgroundColor: `${platform.color}20` }}
+                            {(Object.entries(PLATFORMS) as [Platform, typeof PLATFORMS[Platform]][]).map(([key, platform]) => {
+                                const isConnected = connectedPlatforms.includes(key);
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => isConnected && togglePlatform(key)}
+                                        disabled={!isConnected}
+                                        className={`flex items-center gap-3 p-4 rounded-lg border transition-all ${!isConnected
+                                                ? "border-border/30 opacity-50 cursor-not-allowed"
+                                                : platforms.includes(key)
+                                                    ? "border-violet-500 bg-violet-500/10"
+                                                    : "border-border/50 hover:border-border"
+                                            }`}
                                     >
-                                        <span style={{ color: platform.color }} className="font-bold text-sm">
-                                            {platform.label[0]}
-                                        </span>
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="font-medium">{platform.label}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {platforms.includes(key) ? "Selected" : "Click to select"}
-                                        </p>
-                                    </div>
-                                </button>
-                            ))}
+                                        <div
+                                            className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                            style={{ backgroundColor: `${platform.color}20` }}
+                                        >
+                                            <span style={{ color: platform.color }} className="font-bold text-sm">
+                                                {platform.label[0]}
+                                            </span>
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-medium">{platform.label}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {!isConnected
+                                                    ? "Not Connected"
+                                                    : platforms.includes(key)
+                                                        ? "Selected ✓"
+                                                        : "Click to select"}
+                                            </p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </CardContent>
                 </Card>

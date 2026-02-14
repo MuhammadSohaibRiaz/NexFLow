@@ -139,9 +139,25 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
                     brandVoice: profile?.brand_voice
                 });
 
-                // If review required → "pending", otherwise → "scheduled"
-                const status = pipeline.review_required ? "pending" : "scheduled";
-                const scheduledFor = pipeline.review_required ? undefined : new Date().toISOString();
+                // If review required → "generated" (user approves in dashboard)
+                // If auto-publish  → "scheduled" with scheduled_for = pipeline's post_time
+                let status: string;
+                let scheduledFor: string | undefined;
+
+                if (pipeline.review_required) {
+                    status = "generated";
+                } else {
+                    status = "scheduled";
+                    // Calculate the next publish time from pipeline config
+                    const publishDate = new Date(pipeline.next_run_at || new Date());
+                    const [h, m] = (pipeline.post_time || "18:00").split(":").map(Number);
+                    publishDate.setHours(h, m, 0, 0);
+                    // If that time already passed today, use now + 1 minute as fallback
+                    if (publishDate <= new Date()) {
+                        publishDate.setTime(Date.now() + 60_000);
+                    }
+                    scheduledFor = publishDate.toISOString();
+                }
 
                 const { error: postErr } = await supabase
                     .from("posts")

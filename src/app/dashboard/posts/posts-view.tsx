@@ -18,6 +18,8 @@ interface PostsViewProps {
 const statusColors: Record<string, string> = {
     draft: "bg-yellow-500/20 text-yellow-400",
     pending: "bg-blue-500/20 text-blue-400",
+    approved: "bg-cyan-500/20 text-cyan-400",
+    generated: "bg-indigo-500/20 text-indigo-400",
     scheduled: "bg-violet-500/20 text-violet-400",
     published: "bg-emerald-500/20 text-emerald-400",
     failed: "bg-red-500/20 text-red-400",
@@ -29,6 +31,37 @@ export function PostsView({ initialPosts }: PostsViewProps) {
     const [publishingId, setPublishingId] = useState<string | null>(null);
     const [schedulingId, setSchedulingId] = useState<string | null>(null);
     const [scheduledTime, setScheduledTime] = useState<string>("");
+    const [approvingId, setApprovingId] = useState<string | null>(null);
+
+    const handleApprove = async (postId: string, scheduledFor?: string) => {
+        setApprovingId(postId);
+        try {
+            const res = await fetch("/api/posts/approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ postId, scheduledFor }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to approve");
+            }
+
+            setPosts(posts.map(p =>
+                p.id === postId
+                    ? { ...p, status: "scheduled", scheduled_for: data.post?.scheduled_for }
+                    : p
+            ));
+
+            alert("Post approved and scheduled! 📅");
+        } catch (error: any) {
+            console.error(error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setApprovingId(null);
+        }
+    };
 
     const handlePublish = async (postId: string) => {
         setPublishingId(postId);
@@ -192,7 +225,7 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                             </div>
                                         </CardHeader>
                                         <CardContent>
-                                            <p className="mb-4 text-sm text-muted-foreground line-clamp-3">
+                                            <p className="mb-4 text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">
                                                 {post.content}
                                             </p>
                                             {post.error_message && (
@@ -258,6 +291,57 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                                     <Button size="sm" onClick={() => handlePublish(post.id)} disabled={publishingId === post.id}>
                                                         {publishingId === post.id ? "Publishing..." : "Publish Now"}
                                                     </Button>
+                                                )}
+                                                {(post.status === "approved" || post.status === "generated") && (
+                                                    <>
+                                                        <Dialog>
+                                                            <DialogTrigger asChild>
+                                                                <Button variant="outline" size="sm" onClick={() => {
+                                                                    setSchedulingId(post.id);
+                                                                    const now = new Date();
+                                                                    now.setMinutes(now.getMinutes() + 5);
+                                                                    const year = now.getFullYear();
+                                                                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                                                                    const day = String(now.getDate()).padStart(2, '0');
+                                                                    const hours = String(now.getHours()).padStart(2, '0');
+                                                                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                                                                    setScheduledTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+                                                                }}>
+                                                                    Schedule
+                                                                </Button>
+                                                            </DialogTrigger>
+                                                            <DialogContent>
+                                                                <DialogHeader>
+                                                                    <DialogTitle>Approve & Schedule Post</DialogTitle>
+                                                                    <DialogDescription>
+                                                                        Pick a date and time to automatically publish this post.
+                                                                    </DialogDescription>
+                                                                </DialogHeader>
+                                                                <div className="py-4 space-y-4">
+                                                                    <div className="space-y-2">
+                                                                        <Label>Date & Time</Label>
+                                                                        <Input
+                                                                            type="datetime-local"
+                                                                            value={scheduledTime}
+                                                                            onChange={(e) => setScheduledTime(e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <DialogFooter>
+                                                                    <Button onClick={() => {
+                                                                        if (schedulingId && scheduledTime) {
+                                                                            handleApprove(schedulingId, new Date(scheduledTime).toISOString());
+                                                                            setSchedulingId(null);
+                                                                            setScheduledTime("");
+                                                                        }
+                                                                    }}>Approve & Schedule</Button>
+                                                                </DialogFooter>
+                                                            </DialogContent>
+                                                        </Dialog>
+                                                        <Button size="sm" onClick={() => handleApprove(post.id)} disabled={approvingId === post.id}>
+                                                            {approvingId === post.id ? "Approving..." : "Approve Now"}
+                                                        </Button>
+                                                    </>
                                                 )}
                                                 {post.status === "failed" && (
                                                     <Button size="sm" variant="destructive" onClick={() => handlePublish(post.id)} disabled={publishingId === post.id}>

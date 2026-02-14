@@ -333,13 +333,7 @@ Respond ONLY with valid JSON, no additional text.`;
 // FACTORY & EXPORTS
 // ===========================================
 
-let providerInstance: AIProviderInterface | null = null;
-
-export function getAIProvider(): AIProviderInterface {
-    if (providerInstance) {
-        return providerInstance;
-    }
-
+function getAIProvider(): AIProviderInterface {
     const provider = (process.env.AI_PROVIDER || "gemini") as AIProvider;
 
     switch (provider) {
@@ -348,8 +342,7 @@ export function getAIProvider(): AIProviderInterface {
             if (!apiKey) {
                 throw new Error("ANTHROPIC_API_KEY is not configured");
             }
-            providerInstance = new AnthropicProvider(apiKey);
-            break;
+            return new AnthropicProvider(apiKey);
         }
         case "gemini":
         default: {
@@ -357,12 +350,9 @@ export function getAIProvider(): AIProviderInterface {
             if (!apiKey) {
                 throw new Error("GEMINI_API_KEY is not configured");
             }
-            providerInstance = new GeminiProvider(apiKey);
-            break;
+            return new GeminiProvider(apiKey);
         }
     }
-
-    return providerInstance;
 }
 
 // Convenience function for content generation

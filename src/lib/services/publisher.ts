@@ -20,7 +20,7 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
         return { success: false, error: "Post not found" };
     }
 
-    const userId = post.pipelines?.user_id;
+    const userId = post.user_id;
     if (!userId) {
         return { success: false, error: "User ID not found for this post" };
     }

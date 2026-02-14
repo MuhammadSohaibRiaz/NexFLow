@@ -23,13 +23,10 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/dashboard/platforms?error=missing_params`);
     }
 
-    console.log("[OAuth Debug] Callback received. Code presented:", !!code);
-    console.log("[OAuth Debug] State param received:", state);
 
     // 2. Verify State (CSRF Protection)
     const cookieStore = await cookies();
     const storedStateRaw = cookieStore.get("oauth_state")?.value;
-    console.log("[OAuth Debug] Stored Cookie Value:", storedStateRaw);
 
     if (!storedStateRaw) {
         console.error("[OAuth Debug] Missing oauth_state cookie. Browser might have blocked it or it expired.");
@@ -39,7 +36,7 @@ export async function GET(request: Request) {
     let storedState: { state: string; platform: Platform; userId: string; codeVerifier?: string };
     try {
         storedState = JSON.parse(storedStateRaw);
-        console.log("[OAuth Debug] Parsed Stored State:", storedState);
+        console.log("[OAuth] Parsed stored state for platform:", storedState.platform);
     } catch (e) {
         console.error("[OAuth Debug] Failed to parse stored state cookie", e);
         return NextResponse.redirect(`${origin}/dashboard/platforms?error=invalid_state_cookie`);
@@ -51,9 +48,8 @@ export async function GET(request: Request) {
     let returnedStateObj;
     try {
         returnedStateObj = JSON.parse(state);
-        console.log("[OAuth Debug] Parsed Returned State:", returnedStateObj);
     } catch (e) {
-        console.warn("[OAuth Debug] State param is not JSON. Attempting direct match. Param:", state);
+        console.warn("[OAuth] State param is not JSON, attempting direct match");
         // Fallback: it might be just the UUID if provider manipulated it
     }
 
@@ -61,18 +57,15 @@ export async function GET(request: Request) {
     const incomingStateUUID = returnedStateObj?.state || state;
     const storedStateUUID = storedState.state;
 
-    console.log(`[OAuth Debug] Comparing UUIDs: Incoming=${incomingStateUUID}, Stored=${storedStateUUID}`);
 
     if (incomingStateUUID !== storedStateUUID) {
-        console.error(`[OAuth Debug] CSRF Mismatch! Received: ${incomingStateUUID}, Expected: ${storedStateUUID}`);
+        console.error(`[OAuth] CSRF Mismatch!`);
         return NextResponse.redirect(`${origin}/dashboard/platforms?error=state_mismatch_value`);
     }
 
     const platform = storedState.platform;
     const userId = storedState.userId; // The original user who initiated the flow
 
-    // Log platform for confirmation
-    console.log("[OAuth Debug] Platform identified:", platform);
 
     // 3. Clear State Cookie
     cookieStore.delete("oauth_state");
@@ -139,7 +132,6 @@ export async function GET(request: Request) {
             const accountsRes = await fetch(accountsUrl);
             const accountsData = await accountsRes.json();
 
-            console.log("Facebook Accounts Data:", JSON.stringify(accountsData, null, 2)); // Debug logging
 
             if (accountsData.error) throw new Error(accountsData.error.message);
 
