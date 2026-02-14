@@ -13,7 +13,29 @@ interface PipelinesViewProps {
 }
 
 export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
-    const [pipelines] = useState<Pipeline[]>(initialPipelines);
+    const [pipelines, setPipelines] = useState<Pipeline[]>(initialPipelines);
+    const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+    const handleDelete = async (pipelineId: string) => {
+        if (!confirm("Are you sure you want to delete this pipeline?")) return;
+
+        // Optimistically remove from UI immediately
+        setDeletingIds(prev => new Set(prev).add(pipelineId));
+
+        try {
+            await deletePipeline(pipelineId);
+            // Remove from local state — no page reload needed
+            setPipelines(prev => prev.filter(p => p.id !== pipelineId));
+        } catch (e) {
+            // Revert on error
+            setDeletingIds(prev => {
+                const next = new Set(prev);
+                next.delete(pipelineId);
+                return next;
+            });
+            alert("Failed to delete pipeline");
+        }
+    };
 
     return (
         <div className="p-8 text-white">
@@ -55,7 +77,11 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
                 /* Pipelines Grid */
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {pipelines.map((pipeline) => (
-                        <Card key={pipeline.id} className="bg-card/50 border-border/50 hover:border-violet-500/30 transition-colors">
+                        <Card
+                            key={pipeline.id}
+                            className={`bg-card/50 border-border/50 hover:border-violet-500/30 transition-all ${deletingIds.has(pipeline.id) ? "opacity-50 pointer-events-none scale-95" : ""
+                                }`}
+                        >
                             <CardHeader>
                                 <div className="flex items-start justify-between">
                                     <div>
@@ -100,16 +126,8 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
                                         variant="ghost"
                                         size="sm"
                                         className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
-                                        onClick={async () => {
-                                            if (confirm("Are you sure you want to delete this pipeline?")) {
-                                                try {
-                                                    await deletePipeline(pipeline.id);
-                                                    window.location.reload();
-                                                } catch (e) {
-                                                    alert("Failed to delete pipeline");
-                                                }
-                                            }
-                                        }}
+                                        disabled={deletingIds.has(pipeline.id)}
+                                        onClick={() => handleDelete(pipeline.id)}
                                     >
                                         🗑️
                                     </Button>
