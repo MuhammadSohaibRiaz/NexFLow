@@ -1,16 +1,34 @@
-import { createClient } from "@/lib/supabase/server";
-import { getActivePipelines, getNextPendingTopic, createPost, updatePipeline, updateTopic } from "@/lib/api/db";
+import { createServiceClient } from "@/lib/supabase/service";
 import { generatePostContent } from "@/lib/ai/provider";
 import { Frequency, Pipeline, Topic } from "@/lib/types";
 
+/**
+ * Pipeline Runner - Runs in cron context (no user session).
+ * Uses Service Role client to bypass RLS.
+ */
+
 export async function runDuePipelines() {
+    const supabase = createServiceClient();
+
     console.log("[PipelineRunner] Checking all active pipelines...");
-    const pipelines = await getActivePipelines();
+
+    const { data: pipelines, error: pipeErr } = await supabase
+        .from("pipelines")
+        .select("*")
+        .eq("is_active", true);
+
+    if (pipeErr) throw pipeErr;
+    if (!pipelines || pipelines.length === 0) {
+        console.log("[PipelineRunner] No active pipelines found.");
+        return { total_active: 0, processed: 0, results: [] };
+    }
+
+    console.log(`[PipelineRunner] Found ${pipelines.length} active pipelines.`);
 
     const results = [];
     const now = new Date();
 
-    for (const pipeline of pipelines) {
+    for (const pipeline of pipelines as Pipeline[]) {
         const nextRun = new Date(pipeline.next_run_at || 0);
 
         // If not due yet
@@ -19,14 +37,14 @@ export async function runDuePipelines() {
                 id: pipeline.id,
                 name: pipeline.name,
                 status: "skipped",
-                message: `Scheduled for ${nextRun.toLocaleTimeString()} (${Math.ceil((nextRun.getTime() - now.getTime()) / 60000)} mins)`
+                message: `Scheduled for ${nextRun.toISOString()} (${Math.ceil((nextRun.getTime() - now.getTime()) / 60000)} mins away)`
             });
             continue;
         }
 
         // If due, process it
         try {
-            const result = await processPipeline(pipeline);
+            const result = await processPipeline(supabase, pipeline);
             results.push({
                 id: pipeline.id,
                 name: pipeline.name,
@@ -53,23 +71,29 @@ export async function runDuePipelines() {
     };
 }
 
-async function processPipeline(pipeline: Pipeline) {
-    // 1. Get next topic
-    const topic = await getNextPendingTopic(pipeline.id);
+async function processPipeline(supabase: ReturnType<typeof createServiceClient>, pipeline: Pipeline) {
+    // 1. Get next pending topic
+    const { data: topic, error: topicErr } = await supabase
+        .from("topics")
+        .select("*")
+        .eq("pipeline_id", pipeline.id)
+        .eq("status", "pending")
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .single();
 
-    if (!topic) {
-        console.log(`[PipelineRunner] No pending topics for pipeline ${pipeline.id}. Skipping.`);
-        // Even if no topic, we should probably advance the next_run_at? 
-        // Or keep it 'due' until they add a topic? 
-        // Let's advance it to avoid infinite loops of "nothing to do".
-        await advancePipeline(pipeline);
-        return { topic: null, message: "No pending topics" };
+    if (topicErr) {
+        if (topicErr.code === "PGRST116") {
+            console.log(`[PipelineRunner] No pending topics for pipeline ${pipeline.id}. Advancing schedule.`);
+            await advancePipeline(supabase, pipeline);
+            return { topic: null, message: "No pending topics" };
+        }
+        throw topicErr;
     }
 
     console.log(`[PipelineRunner] Processing topic "${topic.title}" for pipeline ${pipeline.id}`);
 
     // 2. Fetch User Brand Voice
-    const supabase = await createClient();
     const { data: profile } = await supabase
         .from("profiles")
         .select("brand_voice")
@@ -88,54 +112,63 @@ async function processPipeline(pipeline: Pipeline) {
                 brandVoice: profile?.brand_voice
             });
 
-            // 4. Create Post
+            // 4. Create Post - If review required → "pending", otherwise → "scheduled"
             const status = pipeline.review_required ? "pending" : "scheduled";
             const scheduledFor = pipeline.review_required ? undefined : new Date().toISOString();
 
-            await createPost({
-                topic_id: topic.id,
-                pipeline_id: pipeline.id,
-                user_id: pipeline.user_id,
-                platform: platform,
-                content: generated.content,
-                hashtags: generated.hashtags,
-                image_prompt: generated.imagePrompt,
-                status: status,
-                scheduled_for: scheduledFor
-            });
+            const { error: postErr } = await supabase
+                .from("posts")
+                .insert({
+                    topic_id: topic.id,
+                    pipeline_id: pipeline.id,
+                    user_id: pipeline.user_id,
+                    platform: platform,
+                    content: generated.content,
+                    hashtags: generated.hashtags,
+                    image_prompt: generated.imagePrompt,
+                    status: status,
+                    scheduled_for: scheduledFor
+                });
+
+            if (postErr) {
+                console.error(`[PipelineRunner] Failed to create post for ${platform}:`, postErr);
+            } else {
+                console.log(`[PipelineRunner] ✅ Created ${status} post for ${platform}`);
+            }
 
         } catch (error: any) {
             console.error(`[PipelineRunner] Failed to generate ${platform} for topic ${topic.id}:`, error);
-            // We continue with other platforms
         }
     }
 
-    // 5. Update topic status
-    await updateTopic(topic.id, {
-        status: "generated",
-        last_used_at: new Date().toISOString()
-    });
+    // 5. Update topic status to "generated"
+    await supabase
+        .from("topics")
+        .update({ status: "generated", last_used_at: new Date().toISOString() })
+        .eq("id", topic.id);
 
     // 6. Schedule next run
-    await advancePipeline(pipeline);
+    await advancePipeline(supabase, pipeline);
 
     return { topic: topic.title, platforms: pipeline.platforms };
 }
 
-async function advancePipeline(pipeline: Pipeline) {
+async function advancePipeline(supabase: ReturnType<typeof createServiceClient>, pipeline: Pipeline) {
     const nextRun = calculateNextRunAt(pipeline.frequency, new Date(pipeline.next_run_at || new Date()));
 
-    await updatePipeline(pipeline.id, {
-        last_run_at: new Date().toISOString(),
-        next_run_at: nextRun.toISOString()
-    });
+    await supabase
+        .from("pipelines")
+        .update({
+            last_run_at: new Date().toISOString(),
+            next_run_at: nextRun.toISOString()
+        })
+        .eq("id", pipeline.id);
 }
 
 function calculateNextRunAt(frequency: Frequency, lastScheduled: Date): Date {
     const next = new Date(lastScheduled);
     const now = new Date();
 
-    // If lastScheduled is in the past, start from now
     if (next < now) {
         next.setTime(now.getTime());
     }

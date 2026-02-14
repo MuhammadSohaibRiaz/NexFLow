@@ -1,13 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { Post, PlatformConnection } from "@/lib/types";
-import { updatePostStatus } from "@/lib/api/db";
 
 // ==========================================
-// Main Publisher Service
+// Main Publisher Service (Cron Context)
+// Uses Service Role client to bypass RLS.
 // ==========================================
 
 export async function publishPost(postId: string): Promise<{ success: boolean; error?: string }> {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // 1. Fetch Post Data
     const { data: post, error: postError } = await supabase
@@ -34,12 +34,12 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
         .single();
 
     if (connError || !connection) {
-        await updatePostStatus(postId, "failed", "No platform connection found");
+        await supabase.from("posts").update({ status: "failed", error_message: "No platform connection found" }).eq("id", postId);
         return { success: false, error: "No platform connection found" };
     }
 
     if (!connection.is_active) {
-        await updatePostStatus(postId, "failed", "Platform connection is paused");
+        await supabase.from("posts").update({ status: "failed", error_message: "Platform connection is paused" }).eq("id", postId);
         return { success: false, error: "Platform connection is paused" };
     }
 
@@ -75,7 +75,7 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
 
     } catch (error: any) {
         console.error(`Publishing failed for ${post.platform}:`, error);
-        await updatePostStatus(postId, "failed", error.message);
+        await supabase.from("posts").update({ status: "failed", error_message: error.message }).eq("id", postId);
         return { success: false, error: error.message };
     }
 }
@@ -106,7 +106,7 @@ async function publishToFacebook(post: Post, connection: PlatformConnection): Pr
 
         const res = await fetch(photoUrl, { method: "POST", body: photoParams });
         const data = await res.json();
-        console.log("[Facebook] Photo Response:", JSON.stringify(data)); // Debug Log
+        console.log("[Facebook] Photo Response:", JSON.stringify(data));
         if (data.error) throw new Error(data.error.message);
         return data.post_id || data.id;
     }
@@ -117,7 +117,7 @@ async function publishToFacebook(post: Post, connection: PlatformConnection): Pr
     });
 
     const data = await res.json();
-    console.log("[Facebook] Response:", JSON.stringify(data)); // Debug Log
+    console.log("[Facebook] Response:", JSON.stringify(data));
     if (data.error) {
         throw new Error(data.error.message);
     }
@@ -148,7 +148,7 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
         }
     };
 
-    console.log("[LinkedIn] Request:", JSON.stringify(body)); // Debug Log
+    console.log("[LinkedIn] Request:", JSON.stringify(body));
 
     const res = await fetch(url, {
         method: "POST",
@@ -161,7 +161,7 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
     });
 
     const data = await res.json();
-    console.log("[LinkedIn] Response:", JSON.stringify(data)); // Debug log
+    console.log("[LinkedIn] Response:", JSON.stringify(data));
 
     if (!res.ok) {
         throw new Error(data.message || JSON.stringify(data));
@@ -173,6 +173,7 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
 // --- X (TWITTER) ---
 async function publishToTwitter(post: Post, connection: PlatformConnection): Promise<string> {
     let accessToken = connection.access_token;
+    const supabase = createServiceClient();
 
     // 1. Check for Refresh
     const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at) : null;
@@ -180,7 +181,7 @@ async function publishToTwitter(post: Post, connection: PlatformConnection): Pro
 
     if (expiresAt && expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
         // Refresh if expiring in less than 5 mins
-        accessToken = await refreshTwitterToken(connection);
+        accessToken = await refreshTwitterToken(supabase, connection);
     }
 
     // 2. Post Tweet
@@ -190,7 +191,7 @@ async function publishToTwitter(post: Post, connection: PlatformConnection): Pro
         text: post.content
     };
 
-    console.log("[Twitter] Request Body:", JSON.stringify(body)); // Debug Log
+    console.log("[Twitter] Request Body:", JSON.stringify(body));
 
     const res = await fetch(url, {
         method: "POST",
@@ -202,7 +203,7 @@ async function publishToTwitter(post: Post, connection: PlatformConnection): Pro
     });
 
     const data = await res.json();
-    console.log("[Twitter] Full Response:", JSON.stringify(data, null, 2)); // Debug Log
+    console.log("[Twitter] Full Response:", JSON.stringify(data, null, 2));
 
     if (data.errors) {
         throw new Error(`Twitter API Error: ${data.errors[0].message}`);
@@ -217,7 +218,7 @@ async function publishToTwitter(post: Post, connection: PlatformConnection): Pro
 }
 
 // --- HELPER: TWITTER REFRESH ---
-async function refreshTwitterToken(connection: PlatformConnection): Promise<string> {
+async function refreshTwitterToken(supabase: ReturnType<typeof createServiceClient>, connection: PlatformConnection): Promise<string> {
     if (!connection.refresh_token) {
         throw new Error("No refresh token available for Twitter");
     }
@@ -241,7 +242,6 @@ async function refreshTwitterToken(connection: PlatformConnection): Promise<stri
     if (data.error) throw new Error(data.error_description || data.error);
 
     // Update DB
-    const supabase = await createClient();
     const newExpiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
 
     await supabase.from("platform_connections")
