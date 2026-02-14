@@ -6,13 +6,31 @@ import { Post, PlatformConnection } from "@/lib/types";
 // Uses Service Role client to bypass RLS.
 // ==========================================
 
+/**
+ * Compose the final message to post to a platform.
+ * Combines post content with hashtags.
+ */
+function composeMessage(post: Post): string {
+    let message = post.content || "";
+
+    // Append hashtags if present
+    if (post.hashtags && post.hashtags.length > 0) {
+        const tags = post.hashtags
+            .map(h => h.startsWith("#") ? h : `#${h}`)
+            .join(" ");
+        message = `${message}\n\n${tags}`;
+    }
+
+    return message.trim();
+}
+
 export async function publishPost(postId: string): Promise<{ success: boolean; error?: string }> {
     const supabase = createServiceClient();
 
     // 1. Fetch Post Data
     const { data: post, error: postError } = await supabase
         .from("posts")
-        .select("*, pipelines(user_id)") // Join to get user_id
+        .select("*")
         .eq("id", postId)
         .single();
 
@@ -58,7 +76,7 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
                 platformPostId = await publishToTwitter(post, connection);
                 break;
             case "instagram":
-                throw new Error("Instagram publishing logic blocked by Meta");
+                throw new Error("Instagram publishing is not yet supported");
             default:
                 throw new Error(`Unsupported platform: ${post.platform}`);
         }
@@ -74,7 +92,7 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
         return { success: true };
 
     } catch (error: any) {
-        console.error(`Publishing failed for ${post.platform}:`, error);
+        console.error(`[Publisher] Failed for ${post.platform}:`, error.message);
         await supabase.from("posts").update({ status: "failed", error_message: error.message }).eq("id", postId);
         return { success: false, error: error.message };
     }
@@ -88,38 +106,24 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
 async function publishToFacebook(post: Post, connection: PlatformConnection): Promise<string> {
     const pageId = connection.account_id;
     const accessToken = connection.access_token;
+    const message = composeMessage(post);
+
+    if (!pageId) {
+        throw new Error("No Facebook Page ID found. Please reconnect your Facebook account.");
+    }
 
     // API: POST /{page-id}/feed
     const url = `https://graph.facebook.com/v19.0/${pageId}/feed`;
 
     const params = new URLSearchParams();
-    params.append("message", post.content);
+    params.append("message", message);
     params.append("access_token", accessToken);
 
-    if (post.image_url && post.image_url.startsWith("http")) {
-        // Use /photos endpoint for image posts
-        const photoUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
-        const photoParams = new URLSearchParams();
-        photoParams.append("url", post.image_url);
-        photoParams.append("caption", post.content);
-        photoParams.append("access_token", accessToken);
-
-        const res = await fetch(photoUrl, { method: "POST", body: photoParams });
-        const data = await res.json();
-        console.log("[Facebook] Photo Response:", JSON.stringify(data));
-        if (data.error) throw new Error(data.error.message);
-        return data.post_id || data.id;
-    }
-
-    const res = await fetch(url, {
-        method: "POST",
-        body: params
-    });
-
+    const res = await fetch(url, { method: "POST", body: params });
     const data = await res.json();
-    console.log("[Facebook] Response:", JSON.stringify(data));
+
     if (data.error) {
-        throw new Error(data.error.message);
+        throw new Error(`Facebook: ${data.error.message}`);
     }
 
     return data.id;
@@ -129,6 +133,7 @@ async function publishToFacebook(post: Post, connection: PlatformConnection): Pr
 async function publishToLinkedIn(post: Post, connection: PlatformConnection): Promise<string> {
     const personUrn = `urn:li:person:${connection.account_id}`;
     const accessToken = connection.access_token;
+    const message = composeMessage(post);
 
     const url = "https://api.linkedin.com/v2/ugcPosts";
 
@@ -137,9 +142,7 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {
-                    "text": post.content
-                },
+                "shareCommentary": { "text": message },
                 "shareMediaCategory": "NONE"
             }
         },
@@ -147,8 +150,6 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
             "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
         }
     };
-
-    console.log("[LinkedIn] Request:", JSON.stringify(body));
 
     const res = await fetch(url, {
         method: "POST",
@@ -161,10 +162,9 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
     });
 
     const data = await res.json();
-    console.log("[LinkedIn] Response:", JSON.stringify(data));
 
     if (!res.ok) {
-        throw new Error(data.message || JSON.stringify(data));
+        throw new Error(`LinkedIn: ${data.message || JSON.stringify(data)}`);
     }
 
     return data.id;
@@ -174,44 +174,34 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
 async function publishToTwitter(post: Post, connection: PlatformConnection): Promise<string> {
     let accessToken = connection.access_token;
     const supabase = createServiceClient();
+    const message = composeMessage(post);
 
     // 1. Check for Refresh
     const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at) : null;
     const now = new Date();
 
     if (expiresAt && expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
-        // Refresh if expiring in less than 5 mins
         accessToken = await refreshTwitterToken(supabase, connection);
     }
 
     // 2. Post Tweet
-    const url = "https://api.twitter.com/2/tweets";
-
-    const body: any = {
-        text: post.content
-    };
-
-    console.log("[Twitter] Request Body:", JSON.stringify(body));
-
-    const res = await fetch(url, {
+    const res = await fetch("https://api.twitter.com/2/tweets", {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${accessToken}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ text: message })
     });
 
     const data = await res.json();
-    console.log("[Twitter] Full Response:", JSON.stringify(data, null, 2));
 
     if (data.errors) {
-        throw new Error(`Twitter API Error: ${data.errors[0].message}`);
+        throw new Error(`Twitter: ${data.errors[0].message}`);
     }
 
-    // Robust Check
     if (!data.data || !data.data.id) {
-        throw new Error(`Twitter Unexpected Response: ${JSON.stringify(data)}`);
+        throw new Error(`Twitter unexpected response: ${JSON.stringify(data)}`);
     }
 
     return data.data.id;

@@ -4,7 +4,7 @@
  * Supports multiple AI providers with a unified interface.
  * Switch between providers via AI_PROVIDER env variable.
  * 
- * Development: Gemini (free tier - 15 RPM, 1000 RPD, 250K TPM)
+ * Development: Gemini (free tier)
  * Production: Anthropic Claude (paid - better quality)
  */
 
@@ -36,12 +36,128 @@ export interface AIProviderConfig {
 }
 
 // ===========================================
+// SHARED PARSER (used by all providers)
+// ===========================================
+
+function parseAIResponse(text: string): GeneratedContent {
+    const raw = text.trim();
+
+    // Step 1: Strip markdown code blocks
+    let cleaned = raw;
+    const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+        cleaned = codeBlockMatch[1].trim();
+    }
+
+    // Step 2: Try direct JSON parse
+    try {
+        const parsed = JSON.parse(cleaned);
+        if (parsed.content && typeof parsed.content === "string") {
+            return extractFields(parsed);
+        }
+    } catch {
+        // Continue to next step
+    }
+
+    // Step 3: Find JSON object via balanced brace matching
+    const jsonStart = cleaned.indexOf("{");
+    if (jsonStart !== -1) {
+        let braceCount = 0;
+        let jsonEnd = -1;
+        for (let i = jsonStart; i < cleaned.length; i++) {
+            if (cleaned[i] === "{") braceCount++;
+            if (cleaned[i] === "}") braceCount--;
+            if (braceCount === 0) { jsonEnd = i + 1; break; }
+        }
+        if (jsonEnd !== -1) {
+            try {
+                const parsed = JSON.parse(cleaned.substring(jsonStart, jsonEnd));
+                if (parsed.content && typeof parsed.content === "string") {
+                    return extractFields(parsed);
+                }
+            } catch {
+                // Continue to next step
+            }
+        }
+    }
+
+    // Step 4: Regex extraction of the "content" field value
+    const contentMatch = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (contentMatch) {
+        const content = contentMatch[1]
+            .replace(/\\n/g, "\n")
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, "\\");
+
+        const hashtagMatch = raw.match(/"hashtags"\s*:\s*\[([\s\S]*?)\]/);
+        let hashtags: string[] = [];
+        if (hashtagMatch) {
+            hashtags = hashtagMatch[1]
+                .match(/"([^"]+)"/g)
+                ?.map(h => h.replace(/"/g, "")) || [];
+        }
+
+        return { content, hashtags, imagePrompt: undefined };
+    }
+
+    // Step 5: Absolute last resort — strip any JSON artifacts and return plain text
+    console.warn("[AI Parser] All JSON parsing failed. Extracting plain text from response.");
+    let plainText = raw
+        .replace(/```json\s*/g, "")
+        .replace(/```/g, "")
+        .replace(/^\s*\{[\s\S]*\}\s*$/g, "") // Remove if entire response is a JSON object
+        .trim();
+
+    // If stripping removed everything, just take the raw text and clean it
+    if (!plainText) {
+        // Extract text between quotes after "content":
+        plainText = raw
+            .replace(/[{}[\]]/g, "")
+            .replace(/"content"\s*:\s*/gi, "")
+            .replace(/"hashtags"\s*:\s*/gi, "")
+            .replace(/"imagePrompt"\s*:\s*/gi, "")
+            .replace(/"/g, "")
+            .replace(/,\s*$/gm, "")
+            .trim();
+    }
+
+    return {
+        content: plainText.substring(0, 500),
+        hashtags: [],
+        imagePrompt: undefined
+    };
+}
+
+function extractFields(parsed: any): GeneratedContent {
+    // Ensure content is clean string, not nested object
+    let content = parsed.content;
+    if (typeof content !== "string") {
+        content = JSON.stringify(content);
+    }
+    // Unescape any literal \n in the content
+    content = content.replace(/\\n/g, "\n");
+
+    // Ensure hashtags are clean strings without # prefix duplication
+    let hashtags: string[] = [];
+    if (Array.isArray(parsed.hashtags)) {
+        hashtags = parsed.hashtags
+            .map((h: any) => String(h).replace(/^#/, ""))
+            .filter((h: string) => h.length > 0);
+    }
+
+    return {
+        content,
+        hashtags,
+        imagePrompt: typeof parsed.imagePrompt === "string" ? parsed.imagePrompt : undefined,
+    };
+}
+
+// ===========================================
 // PROVIDER INTERFACE
 // ===========================================
 
 interface AIProviderInterface {
     generateContent(request: GenerationRequest): Promise<GeneratedContent>;
-    generateImage?(prompt: string): Promise<string | null>;
 }
 
 // ===========================================
@@ -61,7 +177,7 @@ class GeminiProvider implements AIProviderInterface {
         const charLimit = PLATFORM_LIMITS[platform].text;
         const hashtagLimit = PLATFORM_LIMITS[platform].hashtags;
 
-        const prompt = this.buildPrompt(topic, notes, platform, brandVoice, charLimit, hashtagLimit);
+        const prompt = buildPrompt(topic, notes, platform, brandVoice, charLimit, hashtagLimit);
 
         const response = await fetch(
             `${this.baseUrl}/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
@@ -90,101 +206,7 @@ class GeminiProvider implements AIProviderInterface {
             throw new Error("No content generated");
         }
 
-        return this.parseResponse(text);
-    }
-
-    private buildPrompt(
-        topic: string,
-        notes: string | undefined,
-        platform: Platform,
-        brandVoice: string | undefined,
-        charLimit: number,
-        hashtagLimit: number
-    ): string {
-        return `You are a social media content expert. Generate a ${platform} post about the following topic.
-
-TOPIC: ${topic}
-${notes ? `ADDITIONAL CONTEXT: ${notes}` : ""}
-${brandVoice ? `BRAND VOICE: ${brandVoice}` : ""}
-
-REQUIREMENTS:
-- Maximum ${charLimit} characters for the post content
-- Include up to ${hashtagLimit} relevant hashtags
-- Make it engaging and professional
-- ${platform === "linkedin" ? "Use a professional, thought-leadership tone" : ""}
-- ${platform === "twitter" ? "Be concise and punchy, include 1-2 emojis" : ""}
-- ${platform === "facebook" ? "Be conversational and encourage engagement" : ""}
-- ${platform === "instagram" ? "Focus on visual storytelling, use emojis generously" : ""}
-
-RESPOND IN THIS EXACT JSON FORMAT:
-{
-  "content": "Your post content here without hashtags",
-  "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
-  "imagePrompt": "A description for generating an accompanying image"
-}
-
-Respond ONLY with valid JSON, no additional text.`;
-    }
-
-    private parseResponse(text: string): GeneratedContent {
-        try {
-            // Step 1: Strip markdown code block wrappers if present
-            let cleanedText = text.trim();
-
-            // Remove ```json ... ``` or ``` ... ```
-            const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (codeBlockMatch) {
-                cleanedText = codeBlockMatch[1].trim();
-            }
-
-            // Step 2: Try to parse the cleaned text directly as JSON
-            let parsed;
-            try {
-                parsed = JSON.parse(cleanedText);
-            } catch {
-                // Step 3: Try to extract JSON object using balanced brace matching
-                const jsonStart = cleanedText.indexOf("{");
-                if (jsonStart === -1) throw new Error("No JSON found");
-
-                let braceCount = 0;
-                let jsonEnd = -1;
-                for (let i = jsonStart; i < cleanedText.length; i++) {
-                    if (cleanedText[i] === "{") braceCount++;
-                    if (cleanedText[i] === "}") braceCount--;
-                    if (braceCount === 0) {
-                        jsonEnd = i + 1;
-                        break;
-                    }
-                }
-
-                if (jsonEnd === -1) throw new Error("Unbalanced JSON braces");
-                parsed = JSON.parse(cleanedText.substring(jsonStart, jsonEnd));
-            }
-
-            return {
-                content: parsed.content || "",
-                hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
-                imagePrompt: parsed.imagePrompt || undefined,
-            };
-        } catch (e) {
-            console.error("[GeminiProvider] Failed to parse AI response:", e, "\nRaw text:", text.substring(0, 200));
-            // Smart fallback: try to extract content field manually
-            const contentMatch = text.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-            if (contentMatch) {
-                return {
-                    content: contentMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
-                    hashtags: [],
-                    imagePrompt: undefined,
-                };
-            }
-            // Last resort: use raw text but clean it up
-            const cleaned = text.replace(/```json\s*/g, "").replace(/```/g, "").trim();
-            return {
-                content: cleaned.substring(0, 500),
-                hashtags: [],
-                imagePrompt: undefined,
-            };
-        }
+        return parseAIResponse(text);
     }
 }
 
@@ -205,7 +227,7 @@ class AnthropicProvider implements AIProviderInterface {
         const charLimit = PLATFORM_LIMITS[platform].text;
         const hashtagLimit = PLATFORM_LIMITS[platform].hashtags;
 
-        const prompt = this.buildPrompt(topic, notes, platform, brandVoice, charLimit, hashtagLimit);
+        const prompt = buildPrompt(topic, notes, platform, brandVoice, charLimit, hashtagLimit);
 
         const response = await fetch(`${this.baseUrl}/messages`, {
             method: "POST",
@@ -233,100 +255,46 @@ class AnthropicProvider implements AIProviderInterface {
             throw new Error("No content generated");
         }
 
-        return this.parseResponse(text);
+        return parseAIResponse(text);
     }
+}
 
-    private buildPrompt(
-        topic: string,
-        notes: string | undefined,
-        platform: Platform,
-        brandVoice: string | undefined,
-        charLimit: number,
-        hashtagLimit: number
-    ): string {
-        // Same prompt structure as Gemini for consistency
-        return `You are a social media content expert. Generate a ${platform} post about the following topic.
+// ===========================================
+// SHARED PROMPT BUILDER
+// ===========================================
+
+function buildPrompt(
+    topic: string,
+    notes: string | undefined,
+    platform: Platform,
+    brandVoice: string | undefined,
+    charLimit: number,
+    hashtagLimit: number
+): string {
+    const platformGuidance: Record<string, string> = {
+        linkedin: "Use a professional, thought-leadership tone. Write in short paragraphs.",
+        twitter: "Be concise and punchy. Include 1-2 emojis. Keep it under 280 chars.",
+        facebook: "Be conversational and encourage engagement. Ask a question or use a call to action.",
+        instagram: "Focus on visual storytelling. Use emojis generously. Write in a casual, inspiring tone.",
+    };
+
+    return `You are a social media content expert. Generate a ${platform} post about the following topic.
 
 TOPIC: ${topic}
 ${notes ? `ADDITIONAL CONTEXT: ${notes}` : ""}
-${brandVoice ? `BRAND VOICE: ${brandVoice}` : ""}
+${brandVoice ? `BRAND VOICE / TONE: ${brandVoice}` : ""}
 
-REQUIREMENTS:
+PLATFORM GUIDELINES:
+- ${platformGuidance[platform] || "Be engaging and professional"}
 - Maximum ${charLimit} characters for the post content
 - Include up to ${hashtagLimit} relevant hashtags
-- Make it engaging and professional
-- ${platform === "linkedin" ? "Use a professional, thought-leadership tone" : ""}
-- ${platform === "twitter" ? "Be concise and punchy, include 1-2 emojis" : ""}
-- ${platform === "facebook" ? "Be conversational and encourage engagement" : ""}
-- ${platform === "instagram" ? "Focus on visual storytelling, use emojis generously" : ""}
 
-RESPOND IN THIS EXACT JSON FORMAT:
+RESPOND IN THIS EXACT JSON FORMAT (no markdown, no code blocks, just raw JSON):
 {
-  "content": "Your post content here without hashtags",
-  "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
-  "imagePrompt": "A description for generating an accompanying image"
-}
-
-Respond ONLY with valid JSON, no additional text.`;
-    }
-
-    private parseResponse(text: string): GeneratedContent {
-        try {
-            // Step 1: Strip markdown code block wrappers if present
-            let cleanedText = text.trim();
-
-            const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (codeBlockMatch) {
-                cleanedText = codeBlockMatch[1].trim();
-            }
-
-            // Step 2: Try to parse directly
-            let parsed;
-            try {
-                parsed = JSON.parse(cleanedText);
-            } catch {
-                // Step 3: Balanced brace extraction
-                const jsonStart = cleanedText.indexOf("{");
-                if (jsonStart === -1) throw new Error("No JSON found");
-
-                let braceCount = 0;
-                let jsonEnd = -1;
-                for (let i = jsonStart; i < cleanedText.length; i++) {
-                    if (cleanedText[i] === "{") braceCount++;
-                    if (cleanedText[i] === "}") braceCount--;
-                    if (braceCount === 0) {
-                        jsonEnd = i + 1;
-                        break;
-                    }
-                }
-
-                if (jsonEnd === -1) throw new Error("Unbalanced JSON braces");
-                parsed = JSON.parse(cleanedText.substring(jsonStart, jsonEnd));
-            }
-
-            return {
-                content: parsed.content || "",
-                hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
-                imagePrompt: parsed.imagePrompt || undefined,
-            };
-        } catch (e) {
-            console.error("[AnthropicProvider] Failed to parse AI response:", e, "\nRaw text:", text.substring(0, 200));
-            const contentMatch = text.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-            if (contentMatch) {
-                return {
-                    content: contentMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
-                    hashtags: [],
-                    imagePrompt: undefined,
-                };
-            }
-            const cleaned = text.replace(/```json\s*/g, "").replace(/```/g, "").trim();
-            return {
-                content: cleaned.substring(0, 500),
-                hashtags: [],
-                imagePrompt: undefined,
-            };
-        }
-    }
+  "content": "The full post text here. Do NOT include hashtags in this field.",
+  "hashtags": ["hashtag1", "hashtag2"],
+  "imagePrompt": "A description for an accompanying image"
+}`;
 }
 
 // ===========================================
