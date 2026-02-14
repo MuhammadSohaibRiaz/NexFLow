@@ -128,22 +128,59 @@ Respond ONLY with valid JSON, no additional text.`;
 
     private parseResponse(text: string): GeneratedContent {
         try {
-            // Extract JSON from the response (handle markdown code blocks)
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error("No JSON found in response");
+            // Step 1: Strip markdown code block wrappers if present
+            let cleanedText = text.trim();
+
+            // Remove ```json ... ``` or ``` ... ```
+            const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (codeBlockMatch) {
+                cleanedText = codeBlockMatch[1].trim();
             }
 
-            const parsed = JSON.parse(jsonMatch[0]);
+            // Step 2: Try to parse the cleaned text directly as JSON
+            let parsed;
+            try {
+                parsed = JSON.parse(cleanedText);
+            } catch {
+                // Step 3: Try to extract JSON object using balanced brace matching
+                const jsonStart = cleanedText.indexOf("{");
+                if (jsonStart === -1) throw new Error("No JSON found");
+
+                let braceCount = 0;
+                let jsonEnd = -1;
+                for (let i = jsonStart; i < cleanedText.length; i++) {
+                    if (cleanedText[i] === "{") braceCount++;
+                    if (cleanedText[i] === "}") braceCount--;
+                    if (braceCount === 0) {
+                        jsonEnd = i + 1;
+                        break;
+                    }
+                }
+
+                if (jsonEnd === -1) throw new Error("Unbalanced JSON braces");
+                parsed = JSON.parse(cleanedText.substring(jsonStart, jsonEnd));
+            }
+
             return {
                 content: parsed.content || "",
                 hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
                 imagePrompt: parsed.imagePrompt || undefined,
             };
-        } catch {
-            // Fallback: treat entire response as content
+        } catch (e) {
+            console.error("[GeminiProvider] Failed to parse AI response:", e, "\nRaw text:", text.substring(0, 200));
+            // Smart fallback: try to extract content field manually
+            const contentMatch = text.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+            if (contentMatch) {
+                return {
+                    content: contentMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
+                    hashtags: [],
+                    imagePrompt: undefined,
+                };
+            }
+            // Last resort: use raw text but clean it up
+            const cleaned = text.replace(/```json\s*/g, "").replace(/```/g, "").trim();
             return {
-                content: text.substring(0, 500),
+                content: cleaned.substring(0, 500),
                 hashtags: [],
                 imagePrompt: undefined,
             };
@@ -235,20 +272,56 @@ Respond ONLY with valid JSON, no additional text.`;
 
     private parseResponse(text: string): GeneratedContent {
         try {
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error("No JSON found in response");
+            // Step 1: Strip markdown code block wrappers if present
+            let cleanedText = text.trim();
+
+            const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (codeBlockMatch) {
+                cleanedText = codeBlockMatch[1].trim();
             }
 
-            const parsed = JSON.parse(jsonMatch[0]);
+            // Step 2: Try to parse directly
+            let parsed;
+            try {
+                parsed = JSON.parse(cleanedText);
+            } catch {
+                // Step 3: Balanced brace extraction
+                const jsonStart = cleanedText.indexOf("{");
+                if (jsonStart === -1) throw new Error("No JSON found");
+
+                let braceCount = 0;
+                let jsonEnd = -1;
+                for (let i = jsonStart; i < cleanedText.length; i++) {
+                    if (cleanedText[i] === "{") braceCount++;
+                    if (cleanedText[i] === "}") braceCount--;
+                    if (braceCount === 0) {
+                        jsonEnd = i + 1;
+                        break;
+                    }
+                }
+
+                if (jsonEnd === -1) throw new Error("Unbalanced JSON braces");
+                parsed = JSON.parse(cleanedText.substring(jsonStart, jsonEnd));
+            }
+
             return {
                 content: parsed.content || "",
                 hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
                 imagePrompt: parsed.imagePrompt || undefined,
             };
-        } catch {
+        } catch (e) {
+            console.error("[AnthropicProvider] Failed to parse AI response:", e, "\nRaw text:", text.substring(0, 200));
+            const contentMatch = text.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+            if (contentMatch) {
+                return {
+                    content: contentMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
+                    hashtags: [],
+                    imagePrompt: undefined,
+                };
+            }
+            const cleaned = text.replace(/```json\s*/g, "").replace(/```/g, "").trim();
             return {
-                content: text.substring(0, 500),
+                content: cleaned.substring(0, 500),
                 hashtags: [],
                 imagePrompt: undefined,
             };
