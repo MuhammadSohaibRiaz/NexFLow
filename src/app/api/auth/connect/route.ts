@@ -58,7 +58,8 @@ export async function GET(request: Request) {
     }
     else if (platform === "linkedin") {
         const clientId = process.env.LINKEDIN_CLIENT_ID;
-        const scopes = "openid profile email w_member_social";
+        // Added rw_organization_admin and w_organization_social to support Company Pages
+        const scopes = "openid profile email w_member_social rw_organization_admin w_organization_social";
         authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(stateValue)}&scope=${encodeURIComponent(scopes)}`;
     }
     else if (platform === "twitter") {

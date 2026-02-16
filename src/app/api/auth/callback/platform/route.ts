@@ -199,10 +199,25 @@ export async function GET(request: Request) {
                 const aclData = await aclRes.json();
 
                 if (aclData.elements && aclData.elements.length > 0) {
-                    // User has pages! Redirect to selection screen.
-                    // We need to pass the token and profile info to the selection screen.
-                    // Storing in a temporary cookie or passing via query params (securely?)
-                    // For MVP, we'll use a short-lived cookie.
+                    // Fetch organization details (names)
+                    const orgUrns = aclData.elements.map((e: any) => e.organizationalTarget);
+                    const orgsDetailsRes = await fetch(`https://api.linkedin.com/v2/organizations?ids=List(${orgUrns.join(",")})`, {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                            "X-Restli-Protocol-Version": "2.0.0"
+                        },
+                    });
+                    const orgsDetailsData = await orgsDetailsRes.json();
+
+                    const pages = aclData.elements.map((e: any) => {
+                        const urn = e.organizationalTarget;
+                        const details = orgsDetailsData.results?.[urn];
+                        return {
+                            organizationalTarget: urn,
+                            role: e.role,
+                            name: details?.localizedName || `Company (${urn.split(":").pop()})`
+                        };
+                    });
 
                     const selectionData = {
                         accessToken,
@@ -210,7 +225,7 @@ export async function GET(request: Request) {
                         expiresAt,
                         profileId: accountId,
                         profileName: accountName,
-                        pages: aclData.elements
+                        pages
                     };
 
                     cookieStore.set("linkedin_selection", JSON.stringify(selectionData), {

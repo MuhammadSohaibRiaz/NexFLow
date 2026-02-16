@@ -9,7 +9,7 @@ import { toast } from "sonner";
 interface LinkedInPage {
     organizationalTarget: string; // urn:li:organization:1234
     role: string;
-    state: string;
+    name: string;
 }
 
 interface SelectionData {
@@ -114,17 +114,13 @@ export default function LinkedInSelectPage() {
                                 <div key={page.organizationalTarget} className="border border-zinc-800 rounded-lg p-4 hover:bg-zinc-800/50 transition-colors">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            {/* We don't have the page Name here from ACL, usually need another fetch. 
-                                                For MVP, we show the ID or generic "Company Page". 
-                                                To do it right, we'd batch fetch names. 
-                                                Let's stick to "Company Page (ID: ...)" for MVP to avoid complexity. */}
-                                            <h3 className="font-medium text-white">Company Page</h3>
+                                            <h3 className="font-medium text-white">{page.name}</h3>
                                             <p className="text-xs text-zinc-500">ID: {orgId}</p>
                                         </div>
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={() => handleSelect(page.organizationalTarget, `Page ${orgId}`)}
+                                            onClick={() => handleSelect(page.organizationalTarget, page.name)}
                                             disabled={!!saving}
                                         >
                                             {saving === page.organizationalTarget ? "Connecting..." : "Connect"}
