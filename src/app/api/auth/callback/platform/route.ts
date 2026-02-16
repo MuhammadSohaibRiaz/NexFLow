@@ -185,9 +185,45 @@ export async function GET(request: Request) {
 
             if (profileData.error) throw new Error(JSON.stringify(profileData));
 
-            // userinfo returns 'sub' as the stable ID
             accountId = profileData.sub;
             accountName = profileData.name || `${profileData.given_name} ${profileData.family_name}`;
+
+            // C. Check for Company Pages (Organizations)
+            try {
+                const aclRes = await fetch("https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED", {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "X-Restli-Protocol-Version": "2.0.0"
+                    },
+                });
+                const aclData = await aclRes.json();
+
+                if (aclData.elements && aclData.elements.length > 0) {
+                    // User has pages! Redirect to selection screen.
+                    // We need to pass the token and profile info to the selection screen.
+                    // Storing in a temporary cookie or passing via query params (securely?)
+                    // For MVP, we'll use a short-lived cookie.
+
+                    const selectionData = {
+                        accessToken,
+                        refreshToken,
+                        expiresAt,
+                        profileId: accountId,
+                        profileName: accountName,
+                        pages: aclData.elements
+                    };
+
+                    cookieStore.set("linkedin_selection", JSON.stringify(selectionData), {
+                        maxAge: 300,
+                        httpOnly: true,
+                        path: "/dashboard/platforms/linkedin-select"
+                    });
+
+                    return NextResponse.redirect(`${origin}/dashboard/platforms/linkedin-select`);
+                }
+            } catch (e) {
+                console.warn("Failed to fetch LinkedIn pages, defaulting to profile only", e);
+            }
 
         } else if (platform === "twitter") {
             // Twitter PKCE Token Exchange

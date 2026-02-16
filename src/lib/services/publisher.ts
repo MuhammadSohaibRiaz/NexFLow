@@ -131,14 +131,28 @@ async function publishToFacebook(post: Post, connection: PlatformConnection): Pr
 
 // --- LINKEDIN ---
 async function publishToLinkedIn(post: Post, connection: PlatformConnection): Promise<string> {
-    const personUrn = `urn:li:person:${connection.account_id}`;
+    if (!connection.account_id) {
+        throw new Error("LinkedIn Account ID is missing");
+    }
+
+    // Determine if it's a person or organization URN
+    // If account_id is numeric, it's likely an Organization ID. If it has characters, it's a Person ID (sub).
+    // Better yet: we should store the URN prefix in the DB, but for now we infer.
+    // Person IDs from OpenID Connect (sub) are usually alphanumeric.
+    // Organization IDs are pure numbers.
+
+    const isOrganization = /^\d+$/.test(connection.account_id);
+    const authorUrn = isOrganization
+        ? `urn:li:organization:${connection.account_id}`
+        : `urn:li:person:${connection.account_id}`;
+
     const accessToken = connection.access_token;
     const message = composeMessage(post);
 
     const url = "https://api.linkedin.com/v2/ugcPosts";
 
     const body = {
-        "author": personUrn,
+        "author": authorUrn,
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
