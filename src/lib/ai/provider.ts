@@ -82,13 +82,15 @@ function parseAIResponse(text: string): GeneratedContent {
     }
 
     // Step 4: Regex extraction of the "content" field value
-    const contentMatch = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    // This regex looks for "content": "..." and captures everything inside the quotes, even across multiple lines.
+    const contentMatch = raw.match(/"content"\s*:\s*"([\s\S]*?)"(?=\s*[,}\s])/);
     if (contentMatch) {
-        const content = contentMatch[1]
+        let content = contentMatch[1]
             .replace(/\\n/g, "\n")
             .replace(/\\"/g, '"')
             .replace(/\\\\/g, "\\");
 
+        // Try to find hashtags similarly
         const hashtagMatch = raw.match(/"hashtags"\s*:\s*\[([\s\S]*?)\]/);
         let hashtags: string[] = [];
         if (hashtagMatch) {
@@ -101,28 +103,36 @@ function parseAIResponse(text: string): GeneratedContent {
     }
 
     // Step 5: Absolute last resort — strip any JSON artifacts and return plain text
-    console.warn("[AI Parser] All JSON parsing failed. Extracting plain text from response.");
-    let plainText = raw
-        .replace(/```json\s*/g, "")
-        .replace(/```/g, "")
-        .replace(/^\s*\{[\s\S]*\}\s*$/g, "") // Remove if entire response is a JSON object
-        .trim();
+    console.warn("[AI Parser] All JSON parsing failed. Performing surgical extraction.");
 
-    // If stripping removed everything, just take the raw text and clean it
+    // If it looks like a JSON object, try to just take everything between the first "content" quote and its end
+    const lastDitchContent = raw.match(/"content"\s*:\s*"([\s\S]*)/i);
+    let plainText = "";
+
+    if (lastDitchContent) {
+        plainText = lastDitchContent[1]
+            .replace(/",\s*"hashtags"[\s\S]*$/i, "") // Strip everything after content ends
+            .replace(/"\s*}\s*$/g, "")              // Strip trailing brace
+            .replace(/\\n/g, "\n")
+            .replace(/\\"/g, '"')
+            .trim();
+    }
+
     if (!plainText) {
-        // Extract text between quotes after "content":
         plainText = raw
-            .replace(/[{}[\]]/g, "")
+            .replace(/```json\s*/g, "")
+            .replace(/```/g, "")
+            .replace(/^[^{]*{\s*/, "") // Remove everything before the first brace
             .replace(/"content"\s*:\s*/gi, "")
             .replace(/"hashtags"\s*:\s*/gi, "")
             .replace(/"imagePrompt"\s*:\s*/gi, "")
+            .replace(/[{}[\]]/g, "")
             .replace(/"/g, "")
-            .replace(/,\s*$/gm, "")
             .trim();
     }
 
     return {
-        content: plainText.substring(0, 500),
+        content: plainText.substring(0, 2000), // Increased limit for sanity
         hashtags: [],
         imagePrompt: undefined
     };
