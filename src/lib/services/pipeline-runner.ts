@@ -119,7 +119,7 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
         .from("profiles")
         .select("brand_voice")
         .eq("id", pipeline.user_id)
-        .single();
+        .single() as { data: { brand_voice: string } | null };
 
     const topicResults = [];
 
@@ -148,12 +148,12 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
 // SHARED GENERATION LOGIC (Used by Cron & Instant)
 // =============================================
 
-export async function generateTopicContent(topicId: string, pipelineId: string) {
+export async function generateTopicContent(topicId: string, pipelineId: string): Promise<boolean> {
     const supabase = createServiceClient();
 
     // 1. Fetch Topic & Pipeline
-    const { data: topic } = await supabase.from("topics").select("*").eq("id", topicId).single();
-    const { data: pipeline } = await supabase.from("pipelines").select("*").eq("id", pipelineId).single();
+    const { data: topic } = await supabase.from("topics").select("*").eq("id", topicId).single() as { data: Topic };
+    const { data: pipeline } = await supabase.from("pipelines").select("*").eq("id", pipelineId).single() as { data: Pipeline };
 
     if (!topic || !pipeline) throw new Error("Topic or Pipeline not found");
 
@@ -174,7 +174,7 @@ export async function generateTopicContent(topicId: string, pipelineId: string) 
         .from("profiles")
         .select("brand_voice")
         .eq("id", pipeline.user_id)
-        .single();
+        .single() as { data: { brand_voice: string } | null };
 
     // 4. Process
     return processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice);
@@ -186,7 +186,7 @@ async function processSingleTopic(
     pipeline: Pipeline,
     platforms: string[],
     brandVoice?: string
-) {
+): Promise<boolean> {
     console.log(`[PipelineRunner] Processing topic "${topic.title}"`);
 
     for (const platform of platforms) {

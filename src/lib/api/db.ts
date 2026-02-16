@@ -153,8 +153,8 @@ export async function createTopic(
             .from("topics")
             .select("*")
             .eq("id", data.id)
-            .single();
-        return updated as Topic;
+            .single() as { data: Topic };
+        return updated;
     } catch (e) {
         console.error("Instant generation failed, leaving topic as pending:", e);
         // Return original topic (status: pending) - cron will retry later
