@@ -140,7 +140,8 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
                 });
 
                 // If review required → "generated" (user approves in dashboard)
-                // If auto-publish  → "scheduled" with scheduled_for = pipeline's post_time
+                // If auto-publish  → "scheduled" with scheduled_for set to now
+                // (since this pipeline is already due, publish immediately)
                 let status: string;
                 let scheduledFor: string | undefined;
 
@@ -148,15 +149,10 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
                     status = "generated";
                 } else {
                     status = "scheduled";
-                    // Calculate the next publish time from pipeline config
-                    const publishDate = new Date(pipeline.next_run_at || new Date());
-                    const [h, m] = (pipeline.post_time || "18:00").split(":").map(Number);
-                    publishDate.setHours(h, m, 0, 0);
-                    // If that time already passed today, use now + 1 minute as fallback
-                    if (publishDate <= new Date()) {
-                        publishDate.setTime(Date.now() + 60_000);
-                    }
-                    scheduledFor = publishDate.toISOString();
+                    // Use pipeline.next_run_at as scheduled_for.
+                    // Since we only process pipelines where next_run_at <= now,
+                    // this is always in the past, so publish cron picks it up immediately.
+                    scheduledFor = pipeline.next_run_at || new Date().toISOString();
                 }
 
                 const { error: postErr } = await supabase
