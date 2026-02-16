@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { generateTopicContent } from "@/lib/services/pipeline-runner";
 import type { Pipeline, Topic, Post, PlatformConnection } from "@/lib/types";
 
 // =============================================
@@ -109,6 +110,8 @@ export async function getTopics(pipelineId: string): Promise<Topic[]> {
         .order("sort_order", { ascending: true });
 
     if (error) throw error;
+    // When returning topics, if any are "generated", we could fetch the generated post status
+    // but the UI currently just shows the topic status.
     return data as Topic[];
 }
 
@@ -128,6 +131,7 @@ export async function createTopic(
 
     const nextOrder = (existing?.[0]?.sort_order ?? 0) + 1;
 
+    // 1. Create the topic
     const { data, error } = await supabase
         .from("topics")
         .insert({ ...topic, pipeline_id: pipelineId, sort_order: nextOrder })
@@ -135,7 +139,27 @@ export async function createTopic(
         .single();
 
     if (error) throw error;
-    return data as Topic;
+
+    // 2. Trigger Instant Generation
+    // We launch this asynchronously (without await) if we wanted to return fast, 
+    // BUT user wants to see it generated. However, Server Actions limit async background work 
+    // that outlives the request.
+    // So we await it to ensure it completes before returning.
+
+    try {
+        await generateTopicContent(data.id, pipelineId);
+        // Re-fetch topic to get updated status
+        const { data: updated } = await supabase
+            .from("topics")
+            .select("*")
+            .eq("id", data.id)
+            .single();
+        return updated as Topic;
+    } catch (e) {
+        console.error("Instant generation failed, leaving topic as pending:", e);
+        // Return original topic (status: pending) - cron will retry later
+        return data as Topic;
+    }
 }
 
 export async function updateTopic(

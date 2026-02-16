@@ -125,68 +125,12 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
 
     // Process each topic
     for (const topic of topics as Topic[]) {
-        console.log(`[PipelineRunner] Processing topic "${topic.title}"`);
-
-        // Generate content for each CONNECTED platform
-        for (const platform of validPlatforms) {
-            try {
-                console.log(`[PipelineRunner] Generating ${platform} content for: ${topic.title}`);
-
-                const generated = await generatePostContent({
-                    topic: topic.title,
-                    notes: topic.notes,
-                    platform: platform,
-                    brandVoice: profile?.brand_voice
-                });
-
-                // If review required → "generated" (user approves in dashboard)
-                // If auto-publish  → "scheduled" with scheduled_for set to now
-                // (since this pipeline is already due, publish immediately)
-                let status: string;
-                let scheduledFor: string | undefined;
-
-                if (pipeline.review_required) {
-                    status = "generated";
-                } else {
-                    status = "scheduled";
-                    // Use pipeline.next_run_at as scheduled_for.
-                    // Since we only process pipelines where next_run_at <= now,
-                    // this is always in the past, so publish cron picks it up immediately.
-                    scheduledFor = pipeline.next_run_at || new Date().toISOString();
-                }
-
-                const { error: postErr } = await supabase
-                    .from("posts")
-                    .insert({
-                        topic_id: topic.id,
-                        pipeline_id: pipeline.id,
-                        user_id: pipeline.user_id,
-                        platform: platform,
-                        content: generated.content,
-                        hashtags: generated.hashtags,
-                        image_prompt: generated.imagePrompt,
-                        status: status,
-                        scheduled_for: scheduledFor
-                    });
-
-                if (postErr) {
-                    console.error(`[PipelineRunner] Failed to create post for ${platform}:`, postErr);
-                } else {
-                    console.log(`[PipelineRunner] ✅ Created ${status} post for ${platform}`);
-                }
-
-            } catch (error: any) {
-                console.error(`[PipelineRunner] Failed to generate ${platform} for topic ${topic.id}:`, error);
-            }
+        try {
+            await processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice);
+            topicResults.push(topic.title);
+        } catch (error: any) {
+            console.error(`[PipelineRunner] Failed to generate for topic ${topic.id}:`, error);
         }
-
-        // Mark topic as "generated"
-        await supabase
-            .from("topics")
-            .update({ status: "generated", last_used_at: new Date().toISOString() })
-            .eq("id", topic.id);
-
-        topicResults.push(topic.title);
     }
 
     // Advance the pipeline schedule after processing ALL topics
@@ -198,6 +142,117 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
         platforms_used: validPlatforms,
         platforms_skipped: skippedPlatforms
     };
+}
+
+// =============================================
+// SHARED GENERATION LOGIC (Used by Cron & Instant)
+// =============================================
+
+export async function generateTopicContent(topicId: string, pipelineId: string) {
+    const supabase = createServiceClient();
+
+    // 1. Fetch Topic & Pipeline
+    const { data: topic } = await supabase.from("topics").select("*").eq("id", topicId).single();
+    const { data: pipeline } = await supabase.from("pipelines").select("*").eq("id", pipelineId).single();
+
+    if (!topic || !pipeline) throw new Error("Topic or Pipeline not found");
+
+    // 2. Fetch Connected Platforms
+    const { data: connections } = await supabase
+        .from("platform_connections")
+        .select("platform")
+        .eq("user_id", pipeline.user_id)
+        .eq("is_active", true);
+
+    const connectedPlatforms = new Set((connections || []).map(c => c.platform));
+    const validPlatforms = pipeline.platforms.filter(p => connectedPlatforms.has(p));
+
+    if (validPlatforms.length === 0) throw new Error("No connected platforms");
+
+    // 3. Fetch Brand Voice
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("brand_voice")
+        .eq("id", pipeline.user_id)
+        .single();
+
+    // 4. Process
+    return processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice);
+}
+
+async function processSingleTopic(
+    supabase: ReturnType<typeof createServiceClient>,
+    topic: Topic,
+    pipeline: Pipeline,
+    platforms: string[],
+    brandVoice?: string
+) {
+    console.log(`[PipelineRunner] Processing topic "${topic.title}"`);
+
+    for (const platform of platforms) {
+        try {
+            console.log(`[PipelineRunner] Generating ${platform} content for: ${topic.title}`);
+
+            const generated = await generatePostContent({
+                topic: topic.title,
+                notes: topic.notes,
+                platform: platform as any,
+                brandVoice: brandVoice
+            });
+
+            // If review required → "generated" (user approves in dashboard)
+            // If auto-publish  → "scheduled" with scheduled_for set to now
+            // (since this pipeline is already due, publish immediately)
+            // NOTE FOR INSTANT GENERATION:
+            // When triggered instantly, we want it scheduled for the NEXT run time, 
+            // unless review is required.
+
+            let status: string;
+            let scheduledFor: string | undefined;
+
+            if (pipeline.review_required) {
+                status = "generated";
+            } else {
+                status = "scheduled";
+                // For instant generation, we should respect the schedule.
+                // If this is running via Cron (due now), next_run_at is now/past.
+                // If running via Instant (created now), next_run_at might be in future.
+                scheduledFor = pipeline.next_run_at || new Date().toISOString();
+            }
+
+            const { error: postErr } = await supabase
+                .from("posts")
+                .insert({
+                    topic_id: topic.id,
+                    pipeline_id: pipeline.id,
+                    user_id: pipeline.user_id,
+                    platform: platform,
+                    content: generated.content,
+                    hashtags: generated.hashtags,
+                    image_prompt: generated.imagePrompt,
+                    status: status,
+                    scheduled_for: scheduledFor
+                });
+
+            if (postErr) {
+                console.error(`[PipelineRunner] Failed to create post for ${platform}:`, postErr);
+            } else {
+                console.log(`[PipelineRunner] ✅ Created ${status} post for ${platform}`);
+            }
+
+        } catch (error: any) {
+            console.error(`[PipelineRunner] Failed to generate ${platform} for topic ${topic.id}:`, error);
+            throw error;
+        }
+    }
+
+    // Mark topic as "generated"
+    await supabase
+        .from("topics")
+        .update({ status: "generated", last_used_at: new Date().toISOString() })
+        .eq("id", topic.id);
+
+    return true;
 }
 
 async function advancePipeline(supabase: ReturnType<typeof createServiceClient>, pipeline: Pipeline) {
