@@ -198,7 +198,7 @@ class GeminiProvider implements AIProviderInterface {
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 1024,
+                        maxOutputTokens: 2048,
                     },
                 }),
             }
@@ -247,8 +247,8 @@ class AnthropicProvider implements AIProviderInterface {
                 "anthropic-version": "2024-01-01",
             },
             body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
-                max_tokens: 1024,
+                model: "claude-3-5-sonnet-20240620",
+                max_tokens: 2048,
                 messages: [{ role: "user", content: prompt }],
             }),
         });
@@ -288,7 +288,9 @@ function buildPrompt(
         instagram: "Focus on visual storytelling. Use emojis generously. Write in a casual, inspiring tone.",
     };
 
-    return `You are a social media content expert. Generate a ${platform} post about the following topic.
+    return `You are a social media content expert. Generate a high-quality ${platform} post about the following topic.
+    
+    CRITICAL: Ensure your post is COMPLETE. Do not cut off mid-sentence. Finish every thought and sentence before closing the JSON.
 
 TOPIC: ${topic}
 ${notes ? `ADDITIONAL CONTEXT: ${notes}` : ""}
@@ -299,9 +301,9 @@ PLATFORM GUIDELINES:
 - Maximum ${charLimit} characters for the post content
 - Include up to ${hashtagLimit} relevant hashtags
 
-RESPOND IN THIS EXACT JSON FORMAT (no markdown, no code blocks, just raw JSON):
+RESPOND IN THIS EXACT JSON FORMAT:
 {
-  "content": "The full post text here. Do NOT include hashtags in this field.",
+  "content": "The full post text here. Finish your thoughts.",
   "hashtags": ["hashtag1", "hashtag2"],
   "imagePrompt": "A description for an accompanying image"
 }`;

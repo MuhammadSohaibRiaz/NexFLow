@@ -19,13 +19,32 @@ export function TopicsView({ pipeline, initialTopics }: TopicsViewProps) {
     const [topics, setTopics] = useState<Topic[]>(initialTopics);
     const [newTopicTitle, setNewTopicTitle] = useState("");
     const [isAdding, setIsAdding] = useState(false);
+    const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+    const LOADING_STEPS = [
+        "Analyzing topic idea...",
+        "Establishing brand voice...",
+        "Generating content for platforms...",
+        "Optimizing hashtags & tone...",
+        "Finalizing posts..."
+    ];
 
     const handleAddTopic = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTopicTitle.trim()) return;
 
         setIsAdding(true);
+        let stepIndex = 0;
+        setLoadingStatus(LOADING_STEPS[0]);
+
+        const statusInterval = setInterval(() => {
+            stepIndex++;
+            if (stepIndex < LOADING_STEPS.length) {
+                setLoadingStatus(LOADING_STEPS[stepIndex]);
+            }
+        }, 1500);
+
         try {
             const topic = await createTopic(pipeline.id, {
                 title: newTopicTitle,
@@ -34,11 +53,13 @@ export function TopicsView({ pipeline, initialTopics }: TopicsViewProps) {
             });
             setTopics([...topics, topic]);
             setNewTopicTitle("");
-            toast.success("Topic added to queue");
+            toast.success("Content generated and scheduled!");
         } catch (error) {
-            toast.error("Failed to add topic");
+            toast.error("Failed to generate content");
         } finally {
+            clearInterval(statusInterval);
             setIsAdding(false);
+            setLoadingStatus(null);
         }
     };
 
@@ -84,9 +105,16 @@ export function TopicsView({ pipeline, initialTopics }: TopicsViewProps) {
                         <Button
                             type="submit"
                             disabled={isAdding || !newTopicTitle.trim()}
-                            className="bg-gradient-to-r from-violet-600 to-blue-600"
+                            className="bg-gradient-to-r from-violet-600 to-blue-600 min-w-[140px]"
                         >
-                            {isAdding ? "Adding..." : "+ Add to Queue"}
+                            {isAdding ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                    {loadingStatus}
+                                </div>
+                            ) : (
+                                "+ Add to Queue"
+                            )}
                         </Button>
                     </form>
                 </CardContent>
