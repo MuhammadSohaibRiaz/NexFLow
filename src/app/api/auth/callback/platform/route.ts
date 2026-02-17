@@ -185,60 +185,12 @@ export async function GET(request: Request) {
 
             if (profileData.error) throw new Error(JSON.stringify(profileData));
 
+            // userinfo returns 'sub' as the stable ID
             accountId = profileData.sub;
             accountName = profileData.name || `${profileData.given_name} ${profileData.family_name}`;
 
-            // C. Check for Company Pages (Organizations)
-            try {
-                const aclRes = await fetch("https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED", {
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        "X-Restli-Protocol-Version": "2.0.0"
-                    },
-                });
-                const aclData = await aclRes.json();
-
-                if (aclData.elements && aclData.elements.length > 0) {
-                    // Fetch organization details (names)
-                    const orgUrns = aclData.elements.map((e: any) => e.organizationalTarget);
-                    const orgsDetailsRes = await fetch(`https://api.linkedin.com/v2/organizations?ids=List(${orgUrns.join(",")})`, {
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`,
-                            "X-Restli-Protocol-Version": "2.0.0"
-                        },
-                    });
-                    const orgsDetailsData = await orgsDetailsRes.json();
-
-                    const pages = aclData.elements.map((e: any) => {
-                        const urn = e.organizationalTarget;
-                        const details = orgsDetailsData.results?.[urn];
-                        return {
-                            organizationalTarget: urn,
-                            role: e.role,
-                            name: details?.localizedName || `Company (${urn.split(":").pop()})`
-                        };
-                    });
-
-                    const selectionData = {
-                        accessToken,
-                        refreshToken,
-                        expiresAt,
-                        profileId: accountId,
-                        profileName: accountName,
-                        pages
-                    };
-
-                    cookieStore.set("linkedin_selection", JSON.stringify(selectionData), {
-                        maxAge: 300,
-                        httpOnly: true,
-                        path: "/dashboard/platforms/linkedin-select"
-                    });
-
-                    return NextResponse.redirect(`${origin}/dashboard/platforms/linkedin-select`);
-                }
-            } catch (e) {
-                console.warn("Failed to fetch LinkedIn pages, defaulting to profile only", e);
-            }
+            // REVERTED: Company Page support disabled for now to allow Personal Profile connection
+            // We skip the whole ACL lookup and selection screen.
 
         } else if (platform === "twitter") {
             // Twitter PKCE Token Exchange
