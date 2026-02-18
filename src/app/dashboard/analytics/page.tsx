@@ -1,6 +1,4 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { getPosts, getDashboardStats } from "@/lib/api/db";
 import AnalyticsView from "./analytics-view";
 

@@ -2,8 +2,10 @@ import { Suspense } from "react";
 import { getPosts } from "@/lib/api/db";
 import CalendarView from "./calendar-view";
 
+export const dynamic = "force-dynamic";
+
 export default async function CalendarPage() {
-    // Fetch all posts to show on the calendar (scheduled and published)
+    // Fetch posts for the calendar (scheduled and published)
     const posts = await getPosts();
 
     return (

@@ -2,6 +2,18 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+    const { pathname } = request.nextUrl;
+
+    // Early return for routes that don't need auth checks
+    // This avoids creating a Supabase client + getUser() call on every request
+    const isAuthRoute = pathname === "/login" || pathname === "/signup";
+    const isDashboardRoute = pathname.startsWith("/dashboard");
+
+    if (!isAuthRoute && !isDashboardRoute) {
+        return NextResponse.next();
+    }
+
+    // Only create Supabase client for routes that actually need auth
     let response = NextResponse.next({
         request: {
             headers: request.headers,
@@ -17,7 +29,7 @@ export async function middleware(request: NextRequest) {
                     return request.cookies.getAll();
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) => {
+                    cookiesToSet.forEach(({ name, value }) => {
                         request.cookies.set(name, value);
                     });
                     response = NextResponse.next({
@@ -33,18 +45,18 @@ export async function middleware(request: NextRequest) {
         }
     );
 
-    // This refreshes the session if needed
+    // Refresh session
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Protected Routes Check
-    if (request.nextUrl.pathname.startsWith("/dashboard") && !user) {
+    // Protected Routes: redirect to login if not authenticated
+    if (isDashboardRoute && !user) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
     }
 
-    // Auth Routes Check (Redirect to dashboard if already logged in)
-    if ((request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup") && user) {
+    // Auth Routes: redirect to dashboard if already logged in
+    if (isAuthRoute && user) {
         const url = request.nextUrl.clone();
         url.pathname = "/dashboard";
         return NextResponse.redirect(url);
@@ -55,13 +67,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - public folder
-         */
-        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+        // Only match auth-relevant routes — skip static files, images, API routes, and landing page
+        "/dashboard/:path*",
+        "/login",
+        "/signup",
     ],
 };
