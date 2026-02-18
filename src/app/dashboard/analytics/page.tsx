@@ -1,11 +1,17 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { getPosts, getDashboardStats } from "@/lib/api/db";
 import AnalyticsView from "./analytics-view";
 
 export default async function AnalyticsPage() {
-    // Fetch all posts to calculate metrics
-    // In a larger app, we'd do this via a specialized SQL query or aggregation
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        redirect("/login");
+    }
+
     try {
         const posts = await getPosts();
         const stats = await getDashboardStats();
@@ -25,10 +31,6 @@ export default async function AnalyticsPage() {
         );
     } catch (error) {
         console.error("Failed to load analytics:", error);
-        // If it's an auth error, redirect
-        if ((error as Error).message.includes("authenticate")) {
-            redirect("/login");
-        }
         return (
             <div className="p-8 text-red-500">
                 Failed to load analytics data. Please try refreshing.

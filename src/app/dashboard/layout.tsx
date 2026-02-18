@@ -37,38 +37,41 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     useEffect(() => {
         const supabase = createClient();
 
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-            setLoading(false);
-
-            if (!user) {
+        // 1. Initial user check
+        const initUser = async () => {
+            try {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser) {
+                    setUser(currentUser);
+                } else {
+                    router.push("/login");
+                }
+            } catch (err) {
+                console.error("Auth init error:", err);
                 router.push("/login");
+            } finally {
+                setLoading(false);
             }
         };
 
-        getUser();
+        initUser();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_OUT') {
+        // 2. Auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
+                    setUser(session.user);
+                }
+            } else if (event === 'SIGNED_OUT') {
                 setUser(null);
                 router.push("/login");
-                return;
-            }
-
-            if (session?.user) {
-                setUser(session.user);
-            } else if (!loading) {
-                // Only redirect if we're not loading and there's no session
-                // and it's not a token refresh or update event
-                if (event !== 'TOKEN_REFRESHED' && event !== 'USER_UPDATED') {
-                    router.push("/login");
-                }
             }
         });
 
-        return () => subscription.unsubscribe();
-    }, [router, loading]);
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [router]);
 
     const handleLogout = async () => {
         const supabase = createClient();
