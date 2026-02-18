@@ -1,5 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { generatePostContent } from "@/lib/ai/provider";
+import { generateImage } from "@/lib/ai/image-provider";
+import { uploadPostImage } from "@/lib/supabase/storage";
 import { Frequency, Pipeline, Topic } from "@/lib/types";
 
 /**
@@ -222,7 +224,7 @@ async function processSingleTopic(
                 scheduledFor = pipeline.next_run_at || new Date().toISOString();
             }
 
-            const { error: postErr } = await supabase
+            const { error: postErr, data: newPost } = await supabase
                 .from("posts")
                 .insert({
                     topic_id: topic.id,
@@ -234,12 +236,34 @@ async function processSingleTopic(
                     image_prompt: generated.imagePrompt,
                     status: status,
                     scheduled_for: scheduledFor
-                });
+                })
+                .select()
+                .single();
 
             if (postErr) {
                 console.error(`[PipelineRunner] Failed to create post for ${platform}:`, postErr);
             } else {
                 console.log(`[PipelineRunner] ✅ Created ${status} post for ${platform}`);
+
+                // --- 5. Optional Image Generation ---
+                if (generated.imagePrompt && newPost) {
+                    try {
+                        const imageBuffer = await generateImage(generated.imagePrompt);
+                        const filename = `${newPost.id}_${Date.now()}.webp`;
+                        const imageUrl = await uploadPostImage(imageBuffer, filename);
+
+                        // Update post with image URL
+                        await supabase
+                            .from("posts")
+                            .update({ image_url: imageUrl })
+                            .eq("id", newPost.id);
+
+                        console.log(`[PipelineRunner] 🖼️ Image generated and uploaded for post ${newPost.id}`);
+                    } catch (imgError: any) {
+                        console.error(`[PipelineRunner] Image generation failed for post ${newPost.id}:`, imgError.message);
+                        // We don't throw here - we want the post to exist even if image fails
+                    }
+                }
             }
 
         } catch (error: any) {

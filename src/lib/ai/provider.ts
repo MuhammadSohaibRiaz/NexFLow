@@ -318,7 +318,7 @@ RESPOND IN THIS EXACT JSON FORMAT:
 {
   "content": "The full post text here. Finish your thoughts.",
   "hashtags": ["hashtag1", "hashtag2"],
-  "imagePrompt": "A description for an accompanying image"
+  "imagePrompt": "A highly descriptive, artistic prompt for an image generator (Stable Diffusion). Describe the scene, lighting, and style (e.g., 'A professional office with modern furniture, soft morning light hitting a mahogany desk, photorealistic, 8k'). No text in the image."
 }`;
 }
 

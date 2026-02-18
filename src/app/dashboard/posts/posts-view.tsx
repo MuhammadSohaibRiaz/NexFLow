@@ -228,6 +228,16 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                             <p className="mb-4 text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">
                                                 {post.content}
                                             </p>
+
+                                            {post.image_url && (
+                                                <div className="mb-4 overflow-hidden rounded-lg border border-border/50 bg-black/40">
+                                                    <img
+                                                        src={post.image_url}
+                                                        alt={post.topics?.title || "AI Generated"}
+                                                        className="h-auto w-full object-cover max-h-[300px]"
+                                                    />
+                                                </div>
+                                            )}
                                             {post.error_message && (
                                                 <p className="mb-4 text-sm text-red-400">
                                                     ⚠️ {post.error_message}

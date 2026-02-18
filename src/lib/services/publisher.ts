@@ -147,11 +147,17 @@ async function publishToFacebook(post: Post, connection: PlatformConnection): Pr
         throw new Error("No Facebook Page ID found. Please reconnect your Facebook account.");
     }
 
-    // API: POST /{page-id}/feed
-    const url = `https://graph.facebook.com/v19.0/${pageId}/feed`;
+    // API: POST /{page-id}/photos (if image present) or /feed
+    const isImage = !!post.image_url;
+    const url = `https://graph.facebook.com/v19.0/${pageId}/${isImage ? "photos" : "feed"}`;
 
     const params = new URLSearchParams();
-    params.append("message", message);
+    if (isImage) {
+        params.append("url", post.image_url!);
+        params.append("caption", message);
+    } else {
+        params.append("message", message);
+    }
     params.append("access_token", accessToken);
 
     const res = await fetch(url, { method: "POST", body: params });
@@ -161,7 +167,8 @@ async function publishToFacebook(post: Post, connection: PlatformConnection): Pr
         throw new Error(`Facebook: ${data.error.message}`);
     }
 
-    return data.id;
+    // For photos, Facebook returns 'id' and 'post_id'. We want the post_id for the link.
+    return data.post_id || data.id;
 }
 
 // --- LINKEDIN ---
@@ -183,16 +190,61 @@ async function publishToLinkedIn(post: Post, connection: PlatformConnection): Pr
 
     const accessToken = connection.access_token;
     const message = composeMessage(post);
+    let imageUrn = "";
+
+    // --- Media Upload (if image present) ---
+    if (post.image_url) {
+        try {
+            // 1. Register Upload
+            const regRes = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    "registerUploadRequest": {
+                        "recipes": ["urn:li:digitalassetRecipe:feedshare-image"],
+                        "owner": authorUrn,
+                        "serviceRelationships": [{
+                            "relationshipType": "OWNER",
+                            "identifier": "urn:li:userGeneratedContent"
+                        }]
+                    }
+                })
+            });
+            const regData = await regRes.json();
+            const uploadUrl = regData.value.uploadMechanism["com.linkedin.digitalasset.uploadMechanism.MediaUpload"].uploadUrl;
+            imageUrn = regData.value.asset;
+
+            // 2. Upload Binary
+            const imageRes = await fetch(post.image_url);
+            const imageBlob = await imageRes.blob();
+            await fetch(uploadUrl, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${accessToken}` },
+                body: imageBlob
+            });
+        } catch (e: any) {
+            console.error("[LinkedIn] Media upload failed, falling back to text-only:", e.message);
+        }
+    }
 
     const url = "https://api.linkedin.com/v2/ugcPosts";
 
-    const body = {
+    const body: any = {
         "author": authorUrn,
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
                 "shareCommentary": { "text": message },
-                "shareMediaCategory": "NONE"
+                "shareMediaCategory": imageUrn ? "IMAGE" : "NONE",
+                "media": imageUrn ? [{
+                    "status": "READY",
+                    "description": { "text": post.topic_id || "Post Image" },
+                    "media": imageUrn,
+                    "title": { "text": "Post Image" }
+                }] : []
             }
         },
         "visibility": {
@@ -233,14 +285,51 @@ async function publishToTwitter(post: Post, connection: PlatformConnection): Pro
         accessToken = await refreshTwitterToken(supabase, connection);
     }
 
-    // 2. Post Tweet
+    // 2. Media Upload (if image present)
+    let mediaIds: string[] = [];
+    if (post.image_url) {
+        try {
+            // Fetch Image as Base64 (Standard for v1.1 upload)
+            const imgRes = await fetch(post.image_url);
+            const arrayBuffer = await imgRes.arrayBuffer();
+            const base64Image = Buffer.from(arrayBuffer).toString("base64");
+
+            // Upload to v1.1 Media Endpoint
+            const uploadRes = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({
+                    media_data: base64Image
+                })
+            });
+
+            const uploadData = await uploadRes.json();
+            if (uploadData.media_id_string) {
+                mediaIds = [uploadData.media_id_string];
+            } else {
+                console.error("[Twitter] Upload failed:", JSON.stringify(uploadData));
+            }
+        } catch (e: any) {
+            console.error("[Twitter] Media upload flow failed:", e.message);
+        }
+    }
+
+    // 3. Post Tweet (v2)
+    const payload: any = { text: message };
+    if (mediaIds.length > 0) {
+        payload.media = { media_ids: mediaIds };
+    }
+
     const res = await fetch("https://api.twitter.com/2/tweets", {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${accessToken}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text: message })
+        body: JSON.stringify(payload)
     });
 
     const data = await res.json();
