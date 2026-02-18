@@ -184,11 +184,11 @@ class GeminiProvider implements AIProviderInterface {
     }
 
     async generateContent(request: GenerationRequest): Promise<GeneratedContent> {
-        const { topic, notes, platform, brandVoice } = request;
+        const { topic, notes, platform, brandVoice, voiceExamples } = request;
         const charLimit = PLATFORM_LIMITS[platform].text;
         const hashtagLimit = PLATFORM_LIMITS[platform].hashtags;
 
-        const prompt = buildPrompt(topic, notes, platform, brandVoice, charLimit, hashtagLimit);
+        const prompt = buildPrompt(topic, notes, platform, brandVoice, voiceExamples, charLimit, hashtagLimit);
 
         const response = await fetch(
             `${this.baseUrl}/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
@@ -234,11 +234,11 @@ class AnthropicProvider implements AIProviderInterface {
     }
 
     async generateContent(request: GenerationRequest): Promise<GeneratedContent> {
-        const { topic, notes, platform, brandVoice } = request;
+        const { topic, notes, platform, brandVoice, voiceExamples } = request;
         const charLimit = PLATFORM_LIMITS[platform].text;
         const hashtagLimit = PLATFORM_LIMITS[platform].hashtags;
 
-        const prompt = buildPrompt(topic, notes, platform, brandVoice, charLimit, hashtagLimit);
+        const prompt = buildPrompt(topic, notes, platform, brandVoice, voiceExamples, charLimit, hashtagLimit);
 
         const response = await fetch(`${this.baseUrl}/messages`, {
             method: "POST",
