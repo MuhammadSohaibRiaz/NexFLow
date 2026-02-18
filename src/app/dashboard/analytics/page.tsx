@@ -4,13 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getPosts, getDashboardStats } from "@/lib/api/db";
 import AnalyticsView from "./analytics-view";
 
-export default async function AnalyticsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+// Force dynamic rendering to ensure auth state is fresh
+export const dynamic = "force-dynamic";
 
-    if (!user) {
-        redirect("/login");
-    }
+export default async function AnalyticsPage() {
+    // We don't need to explicitly check user here because:
+    // 1. Middleware protects the route
+    // 2. getPosts/getDashboardStats throw if not authenticated
+    // 3. The try/catch below handles the error safely without looping
 
     try {
         const posts = await getPosts();
