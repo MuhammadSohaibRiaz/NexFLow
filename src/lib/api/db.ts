@@ -228,9 +228,14 @@ export async function getPosts(filters?: {
     pipelineId?: string;
     status?: string;
     platform?: string;
+    limit?: number;
+    offset?: number;
+    fromDate?: string;
+    toDate?: string;
+    columns?: string;
 }): Promise<Post[]> {
     const supabase = await createClient();
-    let query = supabase.from("posts").select("*, topics(title)");
+    let query = supabase.from("posts").select(filters?.columns ?? "*, topics(title)");
 
     if (filters?.pipelineId) {
         query = query.eq("pipeline_id", filters.pipelineId);
@@ -241,11 +246,23 @@ export async function getPosts(filters?: {
     if (filters?.platform) {
         query = query.eq("platform", filters.platform);
     }
+    if (filters?.fromDate) {
+        query = query.gte("created_at", filters.fromDate);
+    }
+    if (filters?.toDate) {
+        query = query.lte("created_at", filters.toDate);
+    }
+    if (typeof filters?.offset === "number" && typeof filters?.limit === "number") {
+        const to = filters.offset + Math.max(filters.limit - 1, 0);
+        query = query.range(filters.offset, to);
+    } else if (typeof filters?.limit === "number") {
+        query = query.limit(filters.limit);
+    }
 
     const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return data as Post[];
+    return (data as any) as Post[];
 }
 
 export async function getPost(id: string): Promise<Post | null> {

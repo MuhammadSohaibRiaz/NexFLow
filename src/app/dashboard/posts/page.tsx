@@ -1,12 +1,15 @@
-import { getPosts } from "@/lib/api/db";
+"use client";
+
+import { useDashboardPosts } from "@/lib/hooks/use-dashboard-data";
 import { PostsView } from "./posts-view";
+import DashboardLoading from "../loading";
 
-export const dynamic = "force-dynamic"; // Ensure we fetch fresh data on every request
+export default function PostsPage() {
+    const { posts, isLoading } = useDashboardPosts();
 
-export default async function PostsPage() {
-    // Fetch posts from DB
-    // We can filter by status if we want, but for now we fetch all and let Client Component filter tabs
-    const posts = await getPosts();
+    if (isLoading || !posts) {
+        return <DashboardLoading />;
+    }
 
     return <PostsView initialPosts={posts} />;
 }

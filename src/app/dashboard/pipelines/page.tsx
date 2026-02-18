@@ -1,10 +1,15 @@
-import { getPipelines } from "@/lib/api/db";
+"use client";
+
+import { useDashboardPipelines } from "@/lib/hooks/use-dashboard-data";
 import { PipelinesView } from "./pipelines-view";
+import DashboardLoading from "../loading";
 
-export const dynamic = "force-dynamic";
+export default function PipelinesPage() {
+    const { pipelines, isLoading } = useDashboardPipelines();
 
-export default async function PipelinesPage() {
-    const pipelines = await getPipelines();
+    if (isLoading || !pipelines) {
+        return <DashboardLoading />;
+    }
 
     return <PipelinesView initialPipelines={pipelines} />;
 }

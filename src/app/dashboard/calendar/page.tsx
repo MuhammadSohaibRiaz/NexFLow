@@ -1,12 +1,15 @@
-import { Suspense } from "react";
-import { getPosts } from "@/lib/api/db";
+"use client";
+
+import { useDashboardPosts } from "@/lib/hooks/use-dashboard-data";
 import CalendarView from "./calendar-view";
+import DashboardLoading from "../loading";
 
-export const dynamic = "force-dynamic";
+export default function CalendarPage() {
+    const { posts, isLoading } = useDashboardPosts();
 
-export default async function CalendarPage() {
-    // Fetch posts for the calendar (scheduled and published)
-    const posts = await getPosts();
+    if (isLoading || !posts) {
+        return <DashboardLoading />;
+    }
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6 bg-black min-h-screen border-l border-zinc-800">
@@ -16,9 +19,7 @@ export default async function CalendarPage() {
                 </h2>
             </div>
 
-            <Suspense fallback={<div className="text-zinc-500">Loading Calendar...</div>}>
-                <CalendarView initialPosts={posts} />
-            </Suspense>
+            <CalendarView initialPosts={posts} />
         </div>
     );
 }
