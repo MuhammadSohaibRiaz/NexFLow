@@ -49,15 +49,26 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         getUser();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
-            if (!session?.user) {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                setUser(null);
                 router.push("/login");
+                return;
+            }
+
+            if (session?.user) {
+                setUser(session.user);
+            } else if (!loading) {
+                // Only redirect if we're not loading and there's no session
+                // and it's not a token refresh or update event
+                if (event !== 'TOKEN_REFRESHED' && event !== 'USER_UPDATED') {
+                    router.push("/login");
+                }
             }
         });
 
         return () => subscription.unsubscribe();
-    }, [router]);
+    }, [router, loading]);
 
     const handleLogout = async () => {
         const supabase = createClient();
