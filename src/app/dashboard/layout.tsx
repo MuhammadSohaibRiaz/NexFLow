@@ -20,6 +20,8 @@ import type { User } from "@supabase/supabase-js";
 // Navigation items
 const navItems = [
     { href: "/dashboard", label: "Overview", icon: "📊" },
+    { href: "/dashboard/analytics", label: "Analytics", icon: "📈" },
+    { href: "/dashboard/calendar", label: "Calendar", icon: "📅" },
     { href: "/dashboard/pipelines", label: "Pipelines", icon: "📋" },
     { href: "/dashboard/posts", label: "Posts", icon: "📝" },
     { href: "/dashboard/platforms", label: "Platforms", icon: "🔗" },
@@ -114,8 +116,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                     <Link
                                         href={item.href}
                                         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${isActive
-                                                ? "bg-violet-500/10 text-violet-400 font-medium"
-                                                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                                            ? "bg-violet-500/10 text-violet-400 font-medium"
+                                            : "text-muted-foreground hover:bg-accent hover:text-foreground"
                                             }`}
                                     >
                                         <span className="text-lg">{item.icon}</span>

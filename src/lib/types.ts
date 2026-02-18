@@ -95,6 +95,7 @@ export interface Post {
     published_at?: string;
     platform_post_id?: string;  // ID from the social platform
     error_message?: string;
+    engagement_metrics?: Record<string, number>; // Likes, views, etc.
     topics?: { title: string }; // Joined from topics table
     created_at: string;
     updated_at: string;
