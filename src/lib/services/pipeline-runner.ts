@@ -114,19 +114,19 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
         return { topics_processed: 0, message: "No connected platforms" };
     }
 
-    // Fetch User Brand Voice (once for all topics)
+    // Fetch User Brand Voice & Examples (once for all topics)
     const { data: profile } = await supabase
         .from("profiles")
-        .select("brand_voice")
+        .select("brand_voice, voice_examples")
         .eq("id", pipeline.user_id)
-        .single() as { data: { brand_voice: string } | null };
+        .single() as { data: { brand_voice: string, voice_examples: string[] } | null };
 
     const topicResults = [];
 
     // Process each topic
     for (const topic of topics as Topic[]) {
         try {
-            await processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice);
+            await processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice, profile?.voice_examples);
             topicResults.push(topic.title);
         } catch (error: any) {
             console.error(`[PipelineRunner] Failed to generate for topic ${topic.id}:`, error);
@@ -169,15 +169,15 @@ export async function generateTopicContent(topicId: string, pipelineId: string):
 
     if (validPlatforms.length === 0) throw new Error("No connected platforms");
 
-    // 3. Fetch Brand Voice
+    // 3. Fetch Brand Voice & Examples
     const { data: profile } = await supabase
         .from("profiles")
-        .select("brand_voice")
+        .select("brand_voice, voice_examples")
         .eq("id", pipeline.user_id)
-        .single() as { data: { brand_voice: string } | null };
+        .single() as { data: { brand_voice: string, voice_examples: string[] } | null };
 
     // 4. Process
-    return processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice);
+    return processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice, profile?.voice_examples);
 }
 
 async function processSingleTopic(
@@ -185,7 +185,8 @@ async function processSingleTopic(
     topic: Topic,
     pipeline: Pipeline,
     platforms: string[],
-    brandVoice?: string
+    brandVoice?: string,
+    voiceExamples?: string[]
 ): Promise<boolean> {
     console.log(`[PipelineRunner] Processing topic "${topic.title}"`);
 
@@ -197,7 +198,8 @@ async function processSingleTopic(
                 topic: topic.title,
                 notes: topic.notes,
                 platform: platform as any,
-                brandVoice: brandVoice
+                brandVoice: brandVoice,
+                voiceExamples: voiceExamples
             });
 
             // If review required → "generated" (user approves in dashboard)

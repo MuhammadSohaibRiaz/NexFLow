@@ -25,6 +25,7 @@ export default function SettingsPage() {
     const [email, setEmail] = useState("");
     const [timezone, setTimezone] = useState("Asia/Karachi");
     const [brandVoice, setBrandVoice] = useState("");
+    const [voiceExamples, setVoiceExamples] = useState<string[]>([]);
 
     useEffect(() => {
         const loadUser = async () => {
@@ -35,23 +36,43 @@ export default function SettingsPage() {
                 setEmail(user.email || "");
                 setTimezone(user.user_metadata?.timezone || "Asia/Karachi");
                 setBrandVoice(user.user_metadata?.brand_voice || "");
+                setVoiceExamples(user.user_metadata?.voice_examples || []);
             }
         };
         loadUser();
     }, []);
 
+    const addExample = () => setVoiceExamples([...voiceExamples, ""]);
+
+    const updateExample = (index: number, value: string) => {
+        const newExamples = [...voiceExamples];
+        newExamples[index] = value;
+        setVoiceExamples(newExamples);
+    };
+
+    const removeExample = (index: number) => {
+        setVoiceExamples(voiceExamples.filter((_, i) => i !== index));
+    };
+
     const handleSaveProfile = async () => {
         setLoading(true);
         try {
             const supabase = createClient();
+            // Filter out empty strings
+            const cleanExamples = voiceExamples.filter(e => e.trim().length > 0);
+
             const { error } = await supabase.auth.updateUser({
                 data: {
                     full_name: fullName,
                     timezone: timezone,
                     brand_voice: brandVoice,
+                    voice_examples: cleanExamples
                 },
             });
             if (error) throw error;
+
+            // Update local state to match cleaned
+            setVoiceExamples(cleanExamples);
             toast.success("Profile updated successfully");
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Failed to update profile");
@@ -129,18 +150,67 @@ export default function SettingsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="brandVoice">Voice Guidelines</Label>
-                            <Textarea
-                                id="brandVoice"
-                                value={brandVoice}
-                                onChange={(e) => setBrandVoice(e.target.value)}
-                                placeholder="e.g., Professional but approachable. Use tech industry language. Focus on actionable tips. Include relevant emojis sparingly."
-                                rows={4}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                AI will use these guidelines when generating posts
-                            </p>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="brandVoice">Voice Guidelines</Label>
+                                <Textarea
+                                    id="brandVoice"
+                                    value={brandVoice}
+                                    onChange={(e) => setBrandVoice(e.target.value)}
+                                    placeholder="e.g., Professional but approachable. Use tech industry language. Focus on actionable tips. Include relevant emojis sparingly."
+                                    rows={4}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    General instructions for the AI's tone and style.
+                                </p>
+                            </div>
+
+                            <Separator className="my-4" />
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <Label>Voice Examples (Few-Shot Learning)</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Paste your best-performing posts here. The AI will mimic their structure and length.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addExample}
+                                        className="h-8 border-dashed"
+                                    >
+                                        + Add Example
+                                    </Button>
+                                </div>
+
+                                {voiceExamples.map((example, index) => (
+                                    <div key={index} className="relative group">
+                                        <Textarea
+                                            value={example}
+                                            onChange={(e) => updateExample(index, e.target.value)}
+                                            placeholder={`Example post #${index + 1}...`}
+                                            className="pr-10 min-h-[100px]"
+                                        />
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => removeExample(index)}
+                                            className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400"
+                                        >
+                                            <span className="sr-only">Remove</span>
+                                            ×
+                                        </Button>
+                                    </div>
+                                ))}
+
+                                {voiceExamples.length === 0 && (
+                                    <div className="text-center p-8 border border-dashed rounded-lg text-muted-foreground text-sm">
+                                        No examples added yet. Add a few to help the AI learn your style!
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

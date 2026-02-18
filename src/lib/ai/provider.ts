@@ -22,6 +22,7 @@ export interface GenerationRequest {
     notes?: string;
     platform: Platform;
     brandVoice?: string;
+    voiceExamples?: string[];
 }
 
 export interface GeneratedContent {
@@ -278,6 +279,7 @@ function buildPrompt(
     notes: string | undefined,
     platform: Platform,
     brandVoice: string | undefined,
+    voiceExamples: string[] | undefined,
     charLimit: number,
     hashtagLimit: number
 ): string {
@@ -288,6 +290,16 @@ function buildPrompt(
         instagram: "Focus on visual storytelling. Use emojis generously. Write in a casual, inspiring tone.",
     };
 
+    let examplesText = "";
+    if (voiceExamples && voiceExamples.length > 0) {
+        examplesText = `
+Here are some examples of my previous successful posts. Mimic this style, tone, and length exactly:
+---
+${voiceExamples.map(e => `EXAMPLE: ${e}`).join("\n---\n")}
+---
+`;
+    }
+
     return `You are a social media content expert. Generate a high-quality ${platform} post about the following topic.
     
     CRITICAL: Ensure your post is COMPLETE. Do not cut off mid-sentence. Finish every thought and sentence before closing the JSON.
@@ -295,6 +307,7 @@ function buildPrompt(
 TOPIC: ${topic}
 ${notes ? `ADDITIONAL CONTEXT: ${notes}` : ""}
 ${brandVoice ? `BRAND VOICE / TONE: ${brandVoice}` : ""}
+${examplesText}
 
 PLATFORM GUIDELINES:
 - ${platformGuidance[platform] || "Be engaging and professional"}

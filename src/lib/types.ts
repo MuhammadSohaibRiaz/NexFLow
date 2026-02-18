@@ -29,6 +29,7 @@ export interface User {
     email: string;
     full_name?: string;
     brand_voice?: string;      // Custom brand voice instructions
+    voice_examples?: string[]; // Array of sample posts for few-shot learning
     avatar_url?: string;
     timezone: string;          // Default: "Asia/Karachi"
     created_at: string;
@@ -96,6 +97,7 @@ export interface Post {
     platform_post_id?: string;  // ID from the social platform
     error_message?: string;
     engagement_metrics?: Record<string, number>; // Likes, views, etc.
+    retry_count?: number;       // Number of retries
     topics?: { title: string }; // Joined from topics table
     created_at: string;
     updated_at: string;
@@ -139,6 +141,7 @@ export interface ContentGenerationRequest {
     notes?: string;
     platform: Platform;
     brand_voice?: string;
+    voice_examples?: string[];
 }
 
 export interface GeneratedContent {

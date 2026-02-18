@@ -61,7 +61,14 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
         return { success: false, error: "Platform connection is paused" };
     }
 
-    // 3. Dispatch to Platform Handler
+    // 3. Rate Limit Check
+    const withinLimit = await checkRateLimit(supabase, userId, post.platform);
+    if (!withinLimit) {
+        console.log(`[Publisher] Rate limit hit for ${post.platform} (User: ${userId})`);
+        return { success: false, error: "Rate limit reached. Try again later." };
+    }
+
+    // 4. Dispatch to Platform Handler
     try {
         let platformPostId = "";
 
@@ -81,7 +88,7 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
                 throw new Error(`Unsupported platform: ${post.platform}`);
         }
 
-        // 4. Success!
+        // 5. Success!
         await supabase.from("posts").update({
             status: "published",
             published_at: new Date().toISOString(),
@@ -93,9 +100,37 @@ export async function publishPost(postId: string): Promise<{ success: boolean; e
 
     } catch (error: any) {
         console.error(`[Publisher] Failed for ${post.platform}:`, error.message);
-        await supabase.from("posts").update({ status: "failed", error_message: error.message }).eq("id", postId);
+
+        // Increment retry count
+        const newRetryCount = (post.retry_count || 0) + 1;
+        await supabase.from("posts").update({
+            status: "failed",
+            error_message: error.message,
+            retry_count: newRetryCount
+        }).eq("id", postId);
+
         return { success: false, error: error.message };
     }
+}
+
+async function checkRateLimit(supabase: ReturnType<typeof createServiceClient>, userId: string, platform: string): Promise<boolean> {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    const { count, error } = await supabase
+        .from("posts")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("platform", platform)
+        .eq("status", "published")
+        .gte("published_at", oneHourAgo);
+
+    if (error) {
+        console.error("[Publisher] Rate limit check failed:", error);
+        return true; // Fail open to avoid blocking valid posts on DB error
+    }
+
+    const limit = 5; // Max 5 posts per hour per platform
+    return (count || 0) < limit;
 }
 
 // ==========================================
