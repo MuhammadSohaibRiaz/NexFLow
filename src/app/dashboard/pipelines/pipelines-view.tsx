@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pipeline } from "@/lib/types";
 import { deletePipeline } from "@/lib/api/db";
+import { mutate } from "swr";
 
 interface PipelinesViewProps {
     initialPipelines: Pipeline[];
@@ -16,6 +17,11 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
     const [pipelines, setPipelines] = useState<Pipeline[]>(initialPipelines);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
+    // Keep local state in sync with props from SWR
+    useEffect(() => {
+        setPipelines(initialPipelines);
+    }, [initialPipelines]);
+
     const handleDelete = async (pipelineId: string) => {
         if (!confirm("Are you sure you want to delete this pipeline?")) return;
 
@@ -24,6 +30,8 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
 
         try {
             await deletePipeline(pipelineId);
+            // Revalidate SWR cache
+            mutate("/api/dashboard/pipelines");
             // Remove from local state — no page reload needed
             setPipelines(prev => prev.filter(p => p.id !== pipelineId));
         } catch (e) {

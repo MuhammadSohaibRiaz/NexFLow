@@ -2,6 +2,8 @@ import { getPipeline, getTopics } from "@/lib/api/db";
 import { TopicsView } from "./topics-view";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 interface TopicsPageProps {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }

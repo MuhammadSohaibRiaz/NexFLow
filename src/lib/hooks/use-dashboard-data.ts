@@ -13,7 +13,7 @@ export function useDashboardPosts(options?: { status?: string; limit?: number })
         fetcher,
         {
             revalidateOnFocus: false,
-            dedupingInterval: 30000, // 30 seconds
+            dedupingInterval: 5000, // 5 seconds
         }
     );
 
@@ -31,7 +31,7 @@ export function useDashboardPipelines() {
         fetcher,
         {
             revalidateOnFocus: false,
-            dedupingInterval: 30000,
+            dedupingInterval: 5000,
         }
     );
 
@@ -49,7 +49,7 @@ export function useDashboardStats() {
         fetcher,
         {
             revalidateOnFocus: false,
-            dedupingInterval: 30000,
+            dedupingInterval: 5000,
         }
     );
 

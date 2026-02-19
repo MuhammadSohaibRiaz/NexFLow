@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "swr";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { FREQUENCIES, REMINDER_OPTIONS, PLATFORMS } from "@/lib/constants";
 import type { Platform, Frequency } from "@/lib/types";
-import { useEffect } from "react";
 
 export default function NewPipelinePage() {
     const router = useRouter();
@@ -85,6 +85,9 @@ export default function NewPipelinePage() {
                 next_run_at: nextRun.toISOString()
             });
 
+            // Force cache refresh for pipelines list
+            mutate("/api/dashboard/pipelines");
+
             toast.success("Pipeline created successfully!");
             router.push("/dashboard/pipelines");
         } catch (error) {
@@ -155,10 +158,10 @@ export default function NewPipelinePage() {
                                         onClick={() => isConnected && togglePlatform(key)}
                                         disabled={!isConnected}
                                         className={`flex items-center gap-3 p-4 rounded-lg border transition-all ${!isConnected
-                                                ? "border-border/30 opacity-50 cursor-not-allowed"
-                                                : platforms.includes(key)
-                                                    ? "border-violet-500 bg-violet-500/10"
-                                                    : "border-border/50 hover:border-border"
+                                            ? "border-border/30 opacity-50 cursor-not-allowed"
+                                            : platforms.includes(key)
+                                                ? "border-violet-500 bg-violet-500/10"
+                                                : "border-border/50 hover:border-border"
                                             }`}
                                     >
                                         <div

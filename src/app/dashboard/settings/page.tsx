@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
 const TIMEZONES = [
     { value: "Asia/Karachi", label: "Pakistan (PKT)" },
@@ -26,6 +27,21 @@ export default function SettingsPage() {
     const [timezone, setTimezone] = useState("Asia/Karachi");
     const [brandVoice, setBrandVoice] = useState("");
     const [voiceExamples, setVoiceExamples] = useState<string[]>([]);
+    const [isVoiceExpanded, setIsVoiceExpanded] = useState(false);
+    const examplesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        examplesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        if (voiceExamples.length > 0) {
+            // Check if we just added a new empty example
+            if (voiceExamples[voiceExamples.length - 1] === "") {
+                scrollToBottom();
+            }
+        }
+    }, [voiceExamples.length]);
 
     useEffect(() => {
         const loadUser = async () => {
@@ -152,13 +168,28 @@ export default function SettingsPage() {
                     <CardContent className="space-y-4">
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="brandVoice">Voice Guidelines</Label>
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="brandVoice">Voice Guidelines</Label>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsVoiceExpanded(!isVoiceExpanded)}
+                                        className="h-7 text-xs text-muted-foreground hover:text-white"
+                                    >
+                                        {isVoiceExpanded ? (
+                                            <><ChevronUp className="h-3 w-3 mr-1" /> Collapse</>
+                                        ) : (
+                                            <><ChevronDown className="h-3 w-3 mr-1" /> Expand</>
+                                        )}
+                                    </Button>
+                                </div>
                                 <Textarea
                                     id="brandVoice"
                                     value={brandVoice}
                                     onChange={(e) => setBrandVoice(e.target.value)}
-                                    placeholder="e.g., Professional but approachable. Use tech industry language. Focus on actionable tips. Include relevant emojis sparingly."
-                                    rows={4}
+                                    placeholder="e.g., Professional but approachable. Use tech industry language. Focus on actionable tips."
+                                    rows={isVoiceExpanded ? 12 : 4}
+                                    className="transition-all duration-200 resize-none overflow-y-auto"
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     General instructions for the AI's tone and style.
@@ -172,41 +203,43 @@ export default function SettingsPage() {
                                     <div className="space-y-1">
                                         <Label>Voice Examples (Few-Shot Learning)</Label>
                                         <p className="text-xs text-muted-foreground">
-                                            Paste your best-performing posts here. The AI will mimic their structure and length.
+                                            The AI will mimic the structure of these examples.
                                         </p>
                                     </div>
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={addExample}
-                                        className="h-8 border-dashed"
+                                        className="h-8 border-dashed bg-violet-500/10 border-violet-500/50 hover:bg-violet-500/20 text-violet-300"
                                     >
-                                        + Add Example
+                                        <Plus className="h-3 w-3 mr-1" /> Add Example
                                     </Button>
                                 </div>
 
                                 {voiceExamples.map((example, index) => (
-                                    <div key={index} className="relative group">
+                                    <div key={index} className="relative group animate-in fade-in slide-in-from-top-2 duration-300">
                                         <Textarea
                                             value={example}
                                             onChange={(e) => updateExample(index, e.target.value)}
                                             placeholder={`Example post #${index + 1}...`}
-                                            className="pr-10 min-h-[100px]"
+                                            className="pr-10 min-h-[100px] bg-zinc-900/50 border-zinc-800 focus:border-violet-500/50"
                                         />
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => removeExample(index)}
-                                            className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400"
+                                            className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-400/70 hover:text-red-400 hover:bg-red-400/10"
                                         >
+                                            <Trash2 className="h-4 w-4" />
                                             <span className="sr-only">Remove</span>
-                                            ×
                                         </Button>
                                     </div>
                                 ))}
 
+                                <div ref={examplesEndRef} />
+
                                 {voiceExamples.length === 0 && (
-                                    <div className="text-center p-8 border border-dashed rounded-lg text-muted-foreground text-sm">
+                                    <div className="text-center p-8 border border-dashed rounded-lg text-muted-foreground text-sm border-zinc-800 bg-zinc-900/20">
                                         No examples added yet. Add a few to help the AI learn your style!
                                     </div>
                                 )}
