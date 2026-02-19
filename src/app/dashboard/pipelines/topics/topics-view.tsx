@@ -51,7 +51,11 @@ export function TopicsView({ pipeline, initialTopics }: TopicsViewProps) {
                 is_evergreen: false,
                 status: "pending"
             });
-            setTopics([...topics, topic]);
+
+            if (topic && topic.id) {
+                setTopics(prev => [...prev, topic]);
+            }
+
             setNewTopicTitle("");
             toast.success("Content generated and scheduled!");
         } catch (error: any) {

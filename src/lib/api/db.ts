@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { generateTopicContent } from "@/lib/services/pipeline-runner";
 import type { Pipeline, Topic, Post, PlatformConnection } from "@/lib/types";
+import { revalidatePath } from "next/cache";
 
 // =============================================
 // PIPELINES API
@@ -156,12 +157,27 @@ export async function createTopic(
             .single() as { data: Topic, error: any };
 
         if (fetchErr) throw fetchErr;
-        return updated;
+
+        // Ensure we return a plain, serializable object for Client Components
+        const normalizedTopic: Topic = {
+            id: updated.id,
+            pipeline_id: updated.pipeline_id,
+            title: updated.title,
+            notes: updated.notes || "",
+            is_evergreen: updated.is_evergreen,
+            recycle_interval_days: updated.recycle_interval_days,
+            last_used_at: updated.last_used_at,
+            sort_order: updated.sort_order,
+            status: updated.status,
+            created_at: updated.created_at
+        };
+
+        revalidatePath("/dashboard/pipelines/topics");
+        return normalizedTopic;
     } catch (e: any) {
         console.error("[Instant Generation] Failed:", e.message || e);
-        // We throw the error so the UI knows it failed, 
-        // but the topic remains in DB as "pending" for manual retry or cron.
-        throw new Error(e.message || "Failed to generate content. Please check your platform connections.");
+        revalidatePath("/dashboard/pipelines/topics");
+        throw new Error(e.message || "Failed to generate content.");
     }
 }
 
