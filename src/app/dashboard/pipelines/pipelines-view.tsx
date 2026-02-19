@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pipeline } from "@/lib/types";
 import { deletePipeline } from "@/lib/api/db";
 import { mutate } from "swr";
+import { toast } from "sonner";
 
 interface PipelinesViewProps {
     initialPipelines: Pipeline[];
@@ -16,17 +18,22 @@ interface PipelinesViewProps {
 export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
     const [pipelines, setPipelines] = useState<Pipeline[]>(initialPipelines);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    const [pipelineToDelete, setPipelineToDelete] = useState<string | null>(null);
 
     // Keep local state in sync with props from SWR
     useEffect(() => {
         setPipelines(initialPipelines);
     }, [initialPipelines]);
 
-    const handleDelete = async (pipelineId: string) => {
-        if (!confirm("Are you sure you want to delete this pipeline?")) return;
+    const handleDelete = async () => {
+        if (!pipelineToDelete) return;
+
+        const pipelineId = pipelineToDelete;
+        setPipelineToDelete(null); // Close dialog
 
         // Optimistically remove from UI immediately
         setDeletingIds(prev => new Set(prev).add(pipelineId));
+        // ...
 
         try {
             await deletePipeline(pipelineId);
@@ -41,7 +48,7 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
                 next.delete(pipelineId);
                 return next;
             });
-            alert("Failed to delete pipeline");
+            toast.error("Failed to delete pipeline");
         }
     };
 
@@ -135,7 +142,7 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
                                         size="sm"
                                         className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
                                         disabled={deletingIds.has(pipeline.id)}
-                                        onClick={() => handleDelete(pipeline.id)}
+                                        onClick={() => setPipelineToDelete(pipeline.id)}
                                     >
                                         🗑️
                                     </Button>
@@ -145,6 +152,26 @@ export function PipelinesView({ initialPipelines }: PipelinesViewProps) {
                     ))}
                 </div>
             )}
+
+            {/* Confirmation Dialog */}
+            <Dialog open={!!pipelineToDelete} onOpenChange={() => setPipelineToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Pipeline</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this pipeline? This will remove all associated topics and posts. This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setPipelineToDelete(null)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete}>
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

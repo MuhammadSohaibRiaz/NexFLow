@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
+import { LogOut } from "lucide-react";
 
 // Navigation items
 const navItems = [
@@ -173,6 +174,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-3 px-3 mt-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors"
+                        onClick={handleLogout}
+                    >
+                        <LogOut className="h-4 w-4" />
+                        Sign Out
+                    </Button>
                 </div>
             </aside>
 

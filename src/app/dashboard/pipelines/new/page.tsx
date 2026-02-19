@@ -85,8 +85,8 @@ export default function NewPipelinePage() {
                 next_run_at: nextRun.toISOString()
             });
 
-            // Force cache refresh for pipelines list
-            mutate("/api/dashboard/pipelines");
+            // Force cache refresh for pipelines list and await it
+            await mutate("/api/dashboard/pipelines");
 
             toast.success("Pipeline created successfully!");
             router.push("/dashboard/pipelines");

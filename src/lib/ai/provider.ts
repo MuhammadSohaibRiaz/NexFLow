@@ -191,7 +191,7 @@ class GeminiProvider implements AIProviderInterface {
         const prompt = buildPrompt(topic, notes, platform, brandVoice, voiceExamples, charLimit, hashtagLimit);
 
         const response = await fetch(
-            `${this.baseUrl}/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
+            `${this.baseUrl}/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -199,7 +199,7 @@ class GeminiProvider implements AIProviderInterface {
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 2048,
+                        maxOutputTokens: 4096,
                     },
                 }),
             }
@@ -318,7 +318,7 @@ RESPOND IN THIS EXACT JSON FORMAT:
 {
   "content": "The full post text here. Finish your thoughts.",
   "hashtags": ["hashtag1", "hashtag2"],
-  "imagePrompt": "A highly descriptive, artistic prompt for an image generator (Stable Diffusion). Describe the scene, lighting, and style (e.g., 'A professional office with modern furniture, soft morning light hitting a mahogany desk, photorealistic, 8k'). No text in the image."
+  "imagePrompt": "A highly descriptive, artistic prompt for an image generator (Stable Diffusion). Describe the scene, lighting, and style (e.g., 'A professional office with modern furniture, soft morning light hitting a mahogany desk, photorealistic, 8k'). MANDATORY: This field must never be empty."
 }`;
 }
 

@@ -5,9 +5,10 @@ import { PipelinesView } from "./pipelines-view";
 import DashboardLoading from "../loading";
 
 export default function PipelinesPage() {
-    const { pipelines, isLoading } = useDashboardPipelines();
+    const { pipelines, isLoading, isValidating } = useDashboardPipelines();
 
-    if (isLoading || !pipelines) {
+    // Show loading if we have no data yet OR if we have empty data but are still validating
+    if (isLoading || !pipelines || (pipelines.length === 0 && isValidating)) {
         return <DashboardLoading />;
     }
 

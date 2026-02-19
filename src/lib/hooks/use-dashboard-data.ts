@@ -8,54 +8,60 @@ export function useDashboardPosts(options?: { status?: string; limit?: number })
     if (options?.status) query.append("status", options.status);
     if (options?.limit) query.append("limit", options.limit.toString());
 
-    const { data, error, isLoading, mutate } = useSWR<Post[]>(
+    const { data, error, isLoading, mutate, isValidating } = useSWR<Post[]>(
         `/api/dashboard/posts?${query.toString()}`,
         fetcher,
         {
             revalidateOnFocus: false,
-            dedupingInterval: 5000, // 5 seconds
+            revalidateIfStale: true,
+            dedupingInterval: 1000,
         }
     );
 
     return {
         posts: data,
         isLoading,
+        isValidating,
         isError: error,
         mutate
     };
 }
 
 export function useDashboardPipelines() {
-    const { data, error, isLoading, mutate } = useSWR<Pipeline[]>(
+    const { data, error, isLoading, mutate, isValidating } = useSWR<Pipeline[]>(
         "/api/dashboard/pipelines",
         fetcher,
         {
             revalidateOnFocus: false,
-            dedupingInterval: 5000,
+            revalidateIfStale: true,
+            dedupingInterval: 1000,
         }
     );
 
     return {
         pipelines: data,
         isLoading,
+        isValidating,
         isError: error,
         mutate
     };
 }
 
 export function useDashboardStats() {
-    const { data, error, isLoading, mutate } = useSWR(
+    const { data, error, isLoading, mutate, isValidating } = useSWR(
         "/api/dashboard/stats",
         fetcher,
         {
             revalidateOnFocus: false,
-            dedupingInterval: 5000,
+            revalidateIfStale: true,
+            dedupingInterval: 1000,
         }
     );
 
     return {
         stats: data,
         isLoading,
+        isValidating,
         isError: error,
         mutate
     };

@@ -10,6 +10,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 interface PostsViewProps {
     initialPosts: Post[];
@@ -54,10 +55,10 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                     : p
             ));
 
-            alert("Post approved and scheduled! 📅");
+            toast.success("Post approved and scheduled! 📅");
         } catch (error: any) {
             console.error(error);
-            alert(`Error: ${error.message}`);
+            toast.error(`Error: ${error.message}`);
         } finally {
             setApprovingId(null);
         }
@@ -83,11 +84,11 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                 p.id === postId ? { ...p, status: "published", published_at: new Date().toISOString() } : p
             ));
 
-            alert("Post published successfully! 🚀");
+            toast.success("Post published successfully! 🚀");
 
         } catch (error: any) {
             console.error(error);
-            alert(`Error: ${error.message}`);
+            toast.error(`Error: ${error.message}`);
             setPosts(posts.map(p =>
                 p.id === postId ? { ...p, status: "failed", error_message: error.message } : p
             ));
@@ -116,13 +117,13 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                 p.id === schedulingId ? { ...p, status: "scheduled", scheduled_for: scheduledTime } : p
             ));
 
-            alert("Post scheduled successfully! 📅");
+            toast.success("Post scheduled successfully! 📅");
             setSchedulingId(null);
             setScheduledTime("");
 
         } catch (error: any) {
             console.error(error);
-            alert(`Error: ${error.message}`);
+            toast.error(`Error: ${error.message}`);
         }
     };
 
@@ -134,14 +135,14 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                 body: JSON.stringify({ platform }),
             });
             if (res.ok) {
-                alert("Test post created! Page will refresh.");
-                window.location.reload();
+                toast.success("Test post created! Page will refresh.");
+                setTimeout(() => window.location.reload(), 1000);
             } else {
                 const d = await res.json();
-                alert("Error: " + d.error);
+                toast.error("Error: " + d.error);
             }
         } catch (e: any) {
-            alert("Error: " + e.message);
+            toast.error("Error: " + e.message);
         }
     };
 
