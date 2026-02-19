@@ -149,16 +149,19 @@ export async function createTopic(
     try {
         await generateTopicContent(data.id, pipelineId);
         // Re-fetch topic to get updated status
-        const { data: updated } = await supabase
+        const { data: updated, error: fetchErr } = await supabase
             .from("topics")
             .select("*")
             .eq("id", data.id)
-            .single() as { data: Topic };
+            .single() as { data: Topic, error: any };
+
+        if (fetchErr) throw fetchErr;
         return updated;
-    } catch (e) {
-        console.error("Instant generation failed, leaving topic as pending:", e);
-        // Return original topic (status: pending) - cron will retry later
-        return data as Topic;
+    } catch (e: any) {
+        console.error("[Instant Generation] Failed:", e.message || e);
+        // We throw the error so the UI knows it failed, 
+        // but the topic remains in DB as "pending" for manual retry or cron.
+        throw new Error(e.message || "Failed to generate content. Please check your platform connections.");
     }
 }
 

@@ -54,8 +54,8 @@ export function TopicsView({ pipeline, initialTopics }: TopicsViewProps) {
             setTopics([...topics, topic]);
             setNewTopicTitle("");
             toast.success("Content generated and scheduled!");
-        } catch (error) {
-            toast.error("Failed to generate content");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to generate content");
         } finally {
             clearInterval(statusInterval);
             setIsAdding(false);

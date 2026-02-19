@@ -56,8 +56,8 @@ function parseAIResponse(text: string): GeneratedContent {
         if (parsed.content && typeof parsed.content === "string") {
             return extractFields(parsed);
         }
-    } catch {
-        // Continue to next step
+    } catch (e) {
+        console.warn("[AI Parser] Direct JSON parse failed, trying brace matching...", e);
     }
 
     // Step 3: Find JSON object via balanced brace matching
@@ -76,8 +76,8 @@ function parseAIResponse(text: string): GeneratedContent {
                 if (parsed.content && typeof parsed.content === "string") {
                     return extractFields(parsed);
                 }
-            } catch {
-                // Continue to next step
+            } catch (e) {
+                console.warn("[AI Parser] Brace matching JSON parse failed", e);
             }
         }
     }
@@ -103,8 +103,18 @@ function parseAIResponse(text: string): GeneratedContent {
         return { content, hashtags, imagePrompt: undefined };
     }
 
-    // Step 5: Absolute last resort — strip any JSON artifacts and return plain text
+    // Step 5: Try to fix truncated JSON (missing closing brace)
+    if (cleaned.startsWith("{") && !cleaned.endsWith("}")) {
+        try {
+            const fixed = cleaned + "}";
+            const parsed = JSON.parse(fixed);
+            return extractFields(parsed);
+        } catch { }
+    }
+
+    // Step 6: Absolute last resort — strip any JSON artifacts and return plain text
     console.warn("[AI Parser] All JSON parsing failed. Performing surgical extraction.");
+    // ... rest of the surgical logic ...
 
     // If it looks like a JSON object, try to just take everything between the first "content" quote and its end
     const lastDitchContent = raw.match(/"content"\s*:\s*"([\s\S]*)/i);
@@ -214,9 +224,11 @@ class GeminiProvider implements AIProviderInterface {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!text) {
+            console.error("[Gemini] Empty response candidates:", JSON.stringify(data, null, 2));
             throw new Error("No content generated");
         }
 
+        console.log("[Gemini] Raw AI Response:", text);
         return parseAIResponse(text);
     }
 }
@@ -318,8 +330,9 @@ RESPOND IN THIS EXACT JSON FORMAT:
 {
   "content": "The full post text here. Finish your thoughts.",
   "hashtags": ["hashtag1", "hashtag2"],
-  "imagePrompt": "A highly descriptive, artistic prompt for an image generator (Stable Diffusion). Describe the scene, lighting, and style (e.g., 'A professional office with modern furniture, soft morning light hitting a mahogany desk, photorealistic, 8k'). MANDATORY: This field must never be empty."
-}`;
+  "imagePrompt": "A descriptive prompt for an image generator (Stable Diffusion). Describe colors, lighting, and a clear scene related to the topic. If not obvious, describe an abstract professional scene with branding colors. MANDATORY: This field must never be empty."
+}
+IMPORTANT: Output ONLY the raw JSON object. Do not include any intro, outro, or markdown formatting outside the JSON block.`;
 }
 
 // ===========================================

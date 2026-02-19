@@ -32,6 +32,7 @@ export function PostsView({ initialPosts }: PostsViewProps) {
     const [publishingId, setPublishingId] = useState<string | null>(null);
     const [schedulingId, setSchedulingId] = useState<string | null>(null);
     const [scheduledTime, setScheduledTime] = useState<string>("");
+    const [previewPost, setPreviewPost] = useState<Post | null>(null);
     const [approvingId, setApprovingId] = useState<string | null>(null);
 
     const handleApprove = async (postId: string, scheduledFor?: string) => {
@@ -245,7 +246,11 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                                 </p>
                                             )}
                                             <div className="flex gap-2">
-                                                <Button variant="outline" size="sm">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setPreviewPost(post)}
+                                                >
                                                     Preview
                                                 </Button>
                                                 {/* Action Buttons */}
@@ -373,6 +378,70 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                     </TabsContent>
                 ))}
             </Tabs>
+            {/* Preview Dialog */}
+            <Dialog open={!!previewPost} onOpenChange={() => setPreviewPost(null)}>
+                <DialogContent className="max-w-2xl bg-[#0f0f10] border-border/50">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize">
+                                {previewPost?.platform}
+                            </Badge>
+                            Post Preview
+                        </DialogTitle>
+                        <DialogDescription>
+                            How your post will appear on {previewPost?.platform}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-6">
+                        <div className="rounded-xl border border-border/50 bg-black/40 overflow-hidden">
+                            {/* Platform Header Simulation */}
+                            <div className="p-4 border-b border-border/10 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-bold">
+                                    {previewPost?.platform?.[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Your Brand</p>
+                                    <p className="text-xs text-muted-foreground">Just now • 🌐</p>
+                                </div>
+                            </div>
+
+                            {/* Post Content */}
+                            <div className="p-4 space-y-4">
+                                <p className="text-[15px] leading-relaxed text-zinc-200 whitespace-pre-line">
+                                    {previewPost?.content}
+                                </p>
+                                {previewPost?.hashtags && previewPost.hashtags.length > 0 && (
+                                    <p className="text-[14px] text-blue-400">
+                                        {previewPost.hashtags.map(h => `#${h}`).join(" ")}
+                                    </p>
+                                )}
+
+                                {previewPost?.image_url && (
+                                    <div className="mt-4 rounded-lg overflow-hidden border border-border/20 bg-black">
+                                        <img
+                                            src={previewPost.image_url}
+                                            alt="Post image"
+                                            className="w-full h-auto max-h-[400px] object-contain"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Platform Footer Simulation */}
+                            <div className="p-3 border-t border-border/10 grid grid-cols-3 text-center text-xs text-muted-foreground">
+                                <div className="py-2 hover:bg-white/5 rounded-lg cursor-default">Like</div>
+                                <div className="py-2 hover:bg-white/5 rounded-lg cursor-default">Comment</div>
+                                <div className="py-2 hover:bg-white/5 rounded-lg cursor-default">Share</div>
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setPreviewPost(null)}>
+                            Close Preview
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
