@@ -54,12 +54,16 @@ export function TopicsView({ pipeline, initialTopics }: TopicsViewProps) {
 
             if (topic && topic.id) {
                 setTopics(prev => [...prev, topic]);
+                if (topic.error) {
+                    toast.warning(`Topic added, but generation failed: ${topic.error}`);
+                } else {
+                    toast.success("Content generated and scheduled!");
+                }
             }
 
             setNewTopicTitle("");
-            toast.success("Content generated and scheduled!");
         } catch (error: any) {
-            toast.error(error.message || "Failed to generate content");
+            toast.error(error.message || "Failed to add topic");
         } finally {
             clearInterval(statusInterval);
             setIsAdding(false);

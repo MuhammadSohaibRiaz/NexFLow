@@ -150,7 +150,11 @@ async function processAllTopics(supabase: ReturnType<typeof createServiceClient>
 // SHARED GENERATION LOGIC (Used by Cron & Instant)
 // =============================================
 
-export async function generateTopicContent(topicId: string, pipelineId: string): Promise<boolean> {
+export async function generateTopicContent(
+    topicId: string,
+    pipelineId: string,
+    options: { skipImages?: boolean } = {}
+): Promise<boolean> {
     const supabase = createServiceClient();
 
     // 1. Fetch Topic & Pipeline
@@ -179,7 +183,7 @@ export async function generateTopicContent(topicId: string, pipelineId: string):
         .single() as { data: { brand_voice: string, voice_examples: string[] } | null };
 
     // 4. Process
-    return processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice, profile?.voice_examples);
+    return processSingleTopic(supabase, topic, pipeline, validPlatforms, profile?.brand_voice, profile?.voice_examples, options);
 }
 
 async function processSingleTopic(
@@ -188,7 +192,8 @@ async function processSingleTopic(
     pipeline: Pipeline,
     platforms: string[],
     brandVoice?: string,
-    voiceExamples?: string[]
+    voiceExamples?: string[],
+    options: { skipImages?: boolean } = {}
 ): Promise<boolean> {
     console.log(`[PipelineRunner] Processing topic "${topic.title}"`);
 
@@ -246,7 +251,7 @@ async function processSingleTopic(
                 console.log(`[PipelineRunner] ✅ Created ${status} post for ${platform}`);
 
                 // --- 5. Optional Image Generation ---
-                if (generated.imagePrompt && newPost) {
+                if (generated.imagePrompt && newPost && !options.skipImages) {
                     try {
                         const imageBuffer = await generateImage(generated.imagePrompt);
                         const filename = `${newPost.id}_${Date.now()}.webp`;

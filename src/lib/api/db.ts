@@ -148,7 +148,10 @@ export async function createTopic(
     // So we await it to ensure it completes before returning.
 
     try {
-        await generateTopicContent(data.id, pipelineId);
+        // We skip images for instant generation to avoid Vercel's 10-second timeout.
+        // The background cron will generate images for any missing posts later.
+        await generateTopicContent(data.id, pipelineId, { skipImages: true });
+
         // Re-fetch topic to get updated status
         const { data: updated, error: fetchErr } = await supabase
             .from("topics")
@@ -172,12 +175,17 @@ export async function createTopic(
             created_at: updated.created_at
         };
 
-        revalidatePath("/dashboard/pipelines/topics");
         return normalizedTopic;
     } catch (e: any) {
         console.error("[Instant Generation] Failed:", e.message || e);
-        revalidatePath("/dashboard/pipelines/topics");
-        throw new Error(e.message || "Failed to generate content.");
+        // We don't throw here to avoid the "Server Components render" crash.
+        // We return the topic in its current state (likely "pending"), 
+        // which the UI can then display with the toast error.
+        return {
+            ...data,
+            status: "pending" as const,
+            error: e.message || "Content generation failed"
+        } as Topic;
     }
 }
 

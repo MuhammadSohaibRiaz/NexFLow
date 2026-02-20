@@ -79,6 +79,7 @@ export interface Topic {
     sort_order: number;
     status: "pending" | "generating" | "generated" | "skipped";
     created_at: string;
+    error?: string;
 }
 
 export interface Post {
