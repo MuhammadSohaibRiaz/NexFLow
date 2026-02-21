@@ -187,7 +187,7 @@ interface AIProviderInterface {
 
 class GeminiProvider implements AIProviderInterface {
     private apiKey: string;
-    private baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+    private baseUrl = "https://generativelanguage.googleapis.com/v1";
 
     constructor(apiKey: string) {
         this.apiKey = apiKey;
@@ -201,7 +201,7 @@ class GeminiProvider implements AIProviderInterface {
         const prompt = buildPrompt(topic, notes, platform, brandVoice, voiceExamples, charLimit, hashtagLimit);
 
         const response = await fetch(
-            `${this.baseUrl}/models/gemini-1.5-flash-latest:generateContent?key=${this.apiKey}`,
+            `${this.baseUrl}/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
