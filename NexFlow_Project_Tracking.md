@@ -14,8 +14,8 @@ I have transformed NexFlow from a basic prototype into a production-ready social
 - **Sign-Out Visibility**: Integrated a dedicated sign-out button in the sidebar.
 
 ### 2. AI & Generation Engine
-- **Stable Gemini 2.0**: Transitioned from the experimental `1.5-flash` to the highly capable `gemini-2.0-flash` via the stable `v1` endpoint. This permanently resolves the "model not found" errors caused by Google deprecating older versions for this region/key.
-- **Robust Parsing**: Implemented a "surgical" JSON parser capable of repairing malformed or truncated AI responses.
+- **Groq (Llama 3)**: Fully migrated the AI provider from Google Gemini to Groq (running `llama-3.3-70b-versatile`). This provides lightning-fast inference and completely resolves the persistent Google Cloud quota/billing errors.
+- **Robust Parsing**: Implemented a "surgical" JSON parser capable of repairing malformed or truncated AI responses, bolstered by Groq's native JSON mode.
 - **Image Generation**: Fully integrated **Replicate (Stable Diffusion 3)** for high-quality post visuals.
 - **Brand Voice**: Built a training UI where users can upload sample posts to maintain consistent tone.
 

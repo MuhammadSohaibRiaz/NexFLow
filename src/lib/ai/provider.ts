@@ -15,7 +15,7 @@ import { PLATFORM_LIMITS } from "@/lib/constants";
 // TYPES
 // ===========================================
 
-export type AIProvider = "gemini" | "anthropic";
+export type AIProvider = "gemini" | "anthropic" | "groq";
 
 export interface GenerationRequest {
     topic: string;
@@ -201,7 +201,7 @@ class GeminiProvider implements AIProviderInterface {
         const prompt = buildPrompt(topic, notes, platform, brandVoice, voiceExamples, charLimit, hashtagLimit);
 
         const response = await fetch(
-            `${this.baseUrl}/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`,
+            `${this.baseUrl}/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -283,6 +283,63 @@ class AnthropicProvider implements AIProviderInterface {
 }
 
 // ===========================================
+// GROQ PROVIDER (Free, ultra-fast Llama 3)
+// ===========================================
+
+class GroqProvider implements AIProviderInterface {
+    private apiKey: string;
+    private baseUrl = "https://api.groq.com/openai/v1/chat/completions";
+
+    constructor(apiKey: string) {
+        this.apiKey = apiKey;
+    }
+
+    async generateContent(request: GenerationRequest): Promise<GeneratedContent> {
+        const { topic, notes, platform, brandVoice, voiceExamples } = request;
+        const charLimit = PLATFORM_LIMITS[platform].text;
+        const hashtagLimit = PLATFORM_LIMITS[platform].hashtags;
+
+        const prompt = buildPrompt(topic, notes, platform, brandVoice, voiceExamples, charLimit, hashtagLimit);
+
+        const response = await fetch(this.baseUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                response_format: { type: "json_object" }, // Ensures valid JSON output
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are an expert social media manager. You must always output syntactically correct JSON."
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Groq API error: ${errorText}`);
+        }
+
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content;
+
+        if (!text) {
+            throw new Error("No content generated from Groq");
+        }
+
+        return parseAIResponse(text);
+    }
+}
+
+// ===========================================
 // SHARED PROMPT BUILDER
 // ===========================================
 
@@ -350,6 +407,13 @@ function getAIProvider(): AIProviderInterface {
             }
             return new AnthropicProvider(apiKey);
         }
+        case "groq": {
+            const apiKey = process.env.GROQ_API_KEY;
+            if (!apiKey) {
+                throw new Error("GROQ_API_KEY is not configured");
+            }
+            return new GroqProvider(apiKey);
+        }
         case "gemini":
         default: {
             const apiKey = process.env.GEMINI_API_KEY;
@@ -372,5 +436,6 @@ export async function generatePostContent(
 // Get current provider name for UI display
 export function getCurrentProviderName(): string {
     const provider = process.env.AI_PROVIDER || "gemini";
+    if (provider === "groq") return "Groq (Llama 3)";
     return provider === "anthropic" ? "Claude (Anthropic)" : "Gemini (Google)";
 }
