@@ -14,7 +14,7 @@ I have transformed NexFlow from a basic prototype into a production-ready social
 - **Sign-Out Visibility**: Integrated a dedicated sign-out button in the sidebar.
 
 ### 2. AI & Generation Engine
-- **Stable Gemini v1**: Transitioned from the experimental `v1beta` to the stable `v1` API endpoint using the standard `gemini-1.5-flash` model for maximum reliability.
+- **Stable Gemini 2.0**: Transitioned from the experimental `1.5-flash` to the highly capable `gemini-2.0-flash` via the stable `v1` endpoint. This permanently resolves the "model not found" errors caused by Google deprecating older versions for this region/key.
 - **Robust Parsing**: Implemented a "surgical" JSON parser capable of repairing malformed or truncated AI responses.
 - **Image Generation**: Fully integrated **Replicate (Stable Diffusion 3)** for high-quality post visuals.
 - **Brand Voice**: Built a training UI where users can upload sample posts to maintain consistent tone.
