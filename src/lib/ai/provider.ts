@@ -396,7 +396,7 @@ RESPOND IN THIS EXACT JSON FORMAT:
 {
   "content": "The full post text here. Finish your thoughts.",
   "hashtags": ["hashtag1", "hashtag2"],
-  "imagePrompt": "A descriptive prompt for an image generator (Stable Diffusion). Describe colors, lighting, and a clear scene related to the topic. If not obvious, describe an abstract professional scene with branding colors. MANDATORY: This field must never be empty."
+  "image_prompt": "A descriptive prompt for an image generator (Stable Diffusion). Describe colors, lighting, and a clear scene related to the topic. If not obvious, describe an abstract professional scene with branding colors. MANDATORY: This field must never be empty."
 }
 IMPORTANT: Output ONLY the raw JSON object. Do not include any intro, outro, or markdown formatting outside the JSON block.`;
 }

@@ -238,7 +238,7 @@ async function processSingleTopic(
                     platform: platform,
                     content: generated.content,
                     hashtags: generated.hashtags,
-                    image_prompt: generated.imagePrompt,
+                    image_prompt: generated.image_prompt,
                     status: status,
                     scheduled_for: scheduledFor
                 })
@@ -251,9 +251,9 @@ async function processSingleTopic(
                 console.log(`[PipelineRunner] ✅ Created ${status} post for ${platform}`);
 
                 // --- 5. Optional Image Generation ---
-                if (generated.imagePrompt && newPost && !options.skipImages) {
+                if (generated.image_prompt && newPost && !options.skipImages) {
                     try {
-                        const imageBuffer = await generateImage(generated.imagePrompt);
+                        const imageBuffer = await generateImage(generated.image_prompt);
                         const filename = `${newPost.id}_${Date.now()}.webp`;
                         const imageUrl = await uploadPostImage(imageBuffer, filename);
 
