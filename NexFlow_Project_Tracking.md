@@ -65,33 +65,3 @@ NexFlow uses a **Next.js 15 App Router** architecture with **SWR** for client-si
 
 > [!NOTE]
 > The project is currently in a stable, production-ready state. All major reported bugs (Flicker, Render Errors, Missing Images) have been resolved.
-
-
-this is what i got in console when i create/add a topic:
-fcae8b5ebc2c0c0e.js:1 
- POST https://nex-flow-six.vercel.app/dashboard/pipelines/topics?pipelineId=4d243ce7-c0f3-4c7a-8b6f-036ea949fb8b 500 (Internal Server Error)
-O	@	fcae8b5ebc2c0c0e.js:1
-await in O		
-j	@	fcae8b5ebc2c0c0e.js:2
-s	@	fcae8b5ebc2c0c0e.js:2
-action	@	fcae8b5ebc2c0c0e.js:2
-g	@	fcae8b5ebc2c0c0e.js:2
-(anonymous)	@	fcae8b5ebc2c0c0e.js:2
-dispatch	@	fcae8b5ebc2c0c0e.js:2
-a	@	ac257a49f19fc607.js:1
-l	@	ac257a49f19fc607.js:1
-(anonymous)	@	ac257a49f19fc607.js:1
-$	@	ac257a49f19fc607.js:1
-(anonymous)	@	ac257a49f19fc607.js:1
-i	@	ac257a49f19fc607.js:1
-n	@	ac257a49f19fc607.js:1
-w	@	cb593ef9f00f3315.js:1
-sY	@	f2f58a7e93290fbb.js:1
-(anonymous)	@	f2f58a7e93290fbb.js:1
-tD	@	f2f58a7e93290fbb.js:1
-s3	@	f2f58a7e93290fbb.js:1
-fC	@	f2f58a7e93290fbb.js:1
-fP	@	f2f58a7e93290fbb.js:1
-
-along iwth this error in ui:
-An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details. A digest property is included on this error instance which may provide additional details about the nature of the error.
