@@ -28,8 +28,6 @@ export async function GET(request: Request) {
         if (error) throw error;
 
         // 2. BACKFILL MISSING IMAGES
-        // We do this BEFORE publishing so that posts waiting for images get them first.
-        // Include 'scheduled' (auto-post), 'generated' (needs review), and 'published' (recent clean-up)
         const { data: missingImages } = await supabase
             .from("posts")
             .select("id, image_prompt")
@@ -37,11 +35,12 @@ export async function GET(request: Request) {
             .is("image_url", null)
             .not("image_prompt", "is", null)
             .order("created_at", { ascending: false })
-            .limit(5); // Process up to 5 per run
+            .limit(3);
 
         let backfilledCount = 0;
+        const backfillResults = [];
+
         if (missingImages && missingImages.length > 0) {
-            console.log(`[Cron:Publish] Backfilling ${missingImages.length} images`);
             for (const post of missingImages) {
                 try {
                     const imageBuffer = await generateImage(post.image_prompt!);
@@ -54,9 +53,9 @@ export async function GET(request: Request) {
                         .eq("id", post.id);
 
                     backfilledCount++;
-                    console.log(`[Cron:Publish] ✅ Backfilled image for post ${post.id}`);
+                    backfillResults.push({ id: post.id, success: true });
                 } catch (imgErr: any) {
-                    console.error(`[Cron:Publish] Failed to backfill image for ${post.id}:`, imgErr.message);
+                    backfillResults.push({ id: post.id, success: false, error: imgErr.message });
                 }
             }
         }
@@ -65,12 +64,12 @@ export async function GET(request: Request) {
             return NextResponse.json({
                 success: true,
                 message: "Nothing to publish or backfill right now.",
-                server_time: now
+                server_time: now,
+                backfill_attempts: backfillResults
             });
         }
 
         // 3. PUBLISH DUE POSTS
-        console.log(`[Cron:Publish] Found ${posts?.length || 0} posts to publish`);
         const results = [];
         if (posts) {
             for (const post of posts) {
@@ -87,11 +86,11 @@ export async function GET(request: Request) {
             success: true,
             processed: posts?.length || 0,
             results,
-            backfilled_images: backfilledCount
+            backfilled_images: backfilledCount,
+            backfill_attempts: backfillResults
         });
 
     } catch (error: any) {
-        console.error("Cron Publish Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
