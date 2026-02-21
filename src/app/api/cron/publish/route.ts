@@ -35,14 +35,18 @@ export async function GET(request: Request) {
             .is("image_url", null)
             .not("image_prompt", "is", null)
             .order("created_at", { ascending: false })
-            .limit(3);
+            .limit(1); // Reduced to 1 to avoid 429 Rate Limit on free tier
 
         let backfilledCount = 0;
         const backfillResults = [];
 
         if (missingImages && missingImages.length > 0) {
+            console.log(`[Cron:Publish] Backfilling ${missingImages.length} images`);
             for (const post of missingImages) {
                 try {
+                    // Safety delay for free tier rate limits
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
                     const imageBuffer = await generateImage(post.image_prompt!);
                     const filename = `${post.id}_${Date.now()}.webp`;
                     const imageUrl = await uploadPostImage(imageBuffer, filename);

@@ -19,18 +19,19 @@ export async function generateImage(prompt: string): Promise<Buffer> {
     console.log(`[ImageProvider] Generating image for prompt: "${prompt}"`);
 
     try {
-        // SD3 is high quality and handles text/detail well
+        // Using a more stable SDXL version
+        // Hash for stability-ai/sdxl is updated
         const output = await replicate.run(
-            "stability-ai/sdxl:7762fd39782bca0f3be8a2a44b105dca776a3c79b727b337c7e03ca0ebfa6ece",
+            "stability-ai/sdxl:39ed52f2a78e934b3ba6e24ee33373cfa09fb2b9f2717bc0150fe43d3401ad74",
             {
                 input: {
                     prompt: prompt,
                     negative_prompt: "low quality, blurry, distorted, messy, text artifacts",
-                    aspect_ratio: "16:9",
-                    num_outputs: 1,
-                    scheduler: "K_EULER",
+                    width: 1024,
+                    height: 576, // 16:9 equivalent
+                    num_inference_steps: 30,
                     guidance_scale: 7.5,
-                    num_inference_steps: 50
+                    scheduler: "K_EULER"
                 }
             }
         );
@@ -45,7 +46,7 @@ export async function generateImage(prompt: string): Promise<Buffer> {
         // Fetch the image and return as Buffer
         const response = await fetch(imageUrl);
         if (!response.ok) throw new Error("Failed to download generated image");
-        
+
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);
 
