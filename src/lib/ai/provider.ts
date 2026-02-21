@@ -28,7 +28,7 @@ export interface GenerationRequest {
 export interface GeneratedContent {
     content: string;
     hashtags: string[];
-    imagePrompt?: string;
+    image_prompt?: string;
 }
 
 export interface AIProviderConfig {
@@ -100,7 +100,7 @@ function parseAIResponse(text: string): GeneratedContent {
                 ?.map(h => h.replace(/"/g, "")) || [];
         }
 
-        return { content, hashtags, imagePrompt: undefined };
+        return { content, hashtags, image_prompt: undefined };
     }
 
     // Step 5: Try to fix truncated JSON (missing closing brace)
@@ -142,10 +142,12 @@ function parseAIResponse(text: string): GeneratedContent {
             .trim();
     }
 
+    // In this last resort, we don't have a parsed object, so we use plainText for content
+    // and provide defaults for hashtags and image_prompt.
     return {
         content: plainText.substring(0, 2000), // Increased limit for sanity
         hashtags: [],
-        imagePrompt: undefined
+        image_prompt: "A professional social media image related to the topic."
     };
 }
 
@@ -160,8 +162,9 @@ function extractFields(parsed: any): GeneratedContent {
 
     // ENSURE NO DUPLICATED HASHTAGS:
     // Some models (like Llama 3) put hashtags in the content AND in the hashtags array.
-    // We strip hashtags from the end of the content to avoid double display in UI.
-    content = content.replace(/(?:\s+#\w+)+\s*$/, "").trim();
+    // We strip hashtags from the content to avoid double display in UI.
+    // This regex looks for hashtags anywhere in the text that are followed by other hashtags or the end of string.
+    content = content.replace(/(?:\s+#\w+)+\s*$/g, "").trim();
 
     // Ensure hashtags are clean strings without # prefix duplication
     let hashtags: string[] = [];
@@ -174,7 +177,8 @@ function extractFields(parsed: any): GeneratedContent {
     return {
         content,
         hashtags,
-        imagePrompt: typeof parsed.imagePrompt === "string" ? parsed.imagePrompt : undefined,
+        image_prompt: typeof parsed.image_prompt === "string" ? parsed.image_prompt :
+            typeof parsed.imagePrompt === "string" ? parsed.imagePrompt : undefined,
     };
 }
 

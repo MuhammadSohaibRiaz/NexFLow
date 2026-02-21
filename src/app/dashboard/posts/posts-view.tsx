@@ -227,9 +227,19 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                             </div>
                                         </CardHeader>
                                         <CardContent>
-                                            <p className="mb-4 text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">
+                                            <p className="mb-2 text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">
                                                 {post.content}
                                             </p>
+
+                                            {post.hashtags && post.hashtags.length > 0 && (
+                                                <div className="mb-4 flex flex-wrap gap-1">
+                                                    {post.hashtags.map((tag, i) => (
+                                                        <span key={i} className="text-xs text-violet-400">
+                                                            #{tag.replace(/^#/, "")}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
 
                                             {post.image_url ? (
                                                 <div className="mb-4 overflow-hidden rounded-lg border border-border/50 bg-black/40">

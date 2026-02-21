@@ -15,7 +15,7 @@ I have transformed NexFlow from a basic prototype into a production-ready social
 
 ### 2. AI & Generation Engine
 - **Groq (Llama 3)**: Fully migrated the AI provider from Google Gemini to Groq (running `llama-3.3-70b-versatile`). This provides lightning-fast inference and completely resolves the persistent Google Cloud quota/billing errors.
-- **Robust Parsing**: Implemented a "surgical" JSON parser capable of repairing malformed or truncated AI responses, bolstered by Groq's native JSON mode.
+- **Robust Parsing & UX**: Implemented a "surgical" JSON parser capable of repairing malformed responses, stripping duplicated hashtags from content bodies, and ensuring `image_prompt` consistency for visual backfilling.
 - **Image Generation**: Fully integrated **Replicate (Stable Diffusion 3)** for high-quality post visuals.
 - **Brand Voice**: Built a training UI where users can upload sample posts to maintain consistent tone.
 
