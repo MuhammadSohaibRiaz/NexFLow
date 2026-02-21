@@ -158,6 +158,11 @@ function extractFields(parsed: any): GeneratedContent {
     // Unescape any literal \n in the content
     content = content.replace(/\\n/g, "\n");
 
+    // ENSURE NO DUPLICATED HASHTAGS:
+    // Some models (like Llama 3) put hashtags in the content AND in the hashtags array.
+    // We strip hashtags from the end of the content to avoid double display in UI.
+    content = content.replace(/(?:\s+#\w+)+\s*$/, "").trim();
+
     // Ensure hashtags are clean strings without # prefix duplication
     let hashtags: string[] = [];
     if (Array.isArray(parsed.hashtags)) {

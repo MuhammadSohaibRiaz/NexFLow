@@ -231,7 +231,7 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                                 {post.content}
                                             </p>
 
-                                            {post.image_url && (
+                                            {post.image_url ? (
                                                 <div className="mb-4 overflow-hidden rounded-lg border border-border/50 bg-black/40">
                                                     <img
                                                         src={post.image_url}
@@ -239,7 +239,18 @@ export function PostsView({ initialPosts }: PostsViewProps) {
                                                         className="h-auto w-full object-cover max-h-[300px]"
                                                     />
                                                 </div>
-                                            )}
+                                            ) : (post.image_prompt && post.status !== "published") ? (
+                                                <div className="mb-4 overflow-hidden rounded-lg border border-dashed border-border/50 bg-card/30 p-8 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-2">
+                                                        <div className="animate-pulse flex space-x-2">
+                                                            <div className="h-2 w-2 bg-violet-500 rounded-full"></div>
+                                                            <div className="h-2 w-2 bg-violet-500 rounded-full"></div>
+                                                            <div className="h-2 w-2 bg-violet-500 rounded-full"></div>
+                                                        </div>
+                                                        <span className="text-xs text-muted-foreground">AI Image is being generated in the background...</span>
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                             {post.error_message && (
                                                 <p className="mb-4 text-sm text-red-400">
                                                     ⚠️ {post.error_message}

@@ -1,5 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { publishPost } from "@/lib/services/publisher";
+import { generateImage } from "@/lib/ai/image-provider";
+import { uploadPostImage } from "@/lib/supabase/storage";
 import { NextResponse } from "next/server";
 
 // This endpoint is protected by CRON_SECRET
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
 
         console.log(`[Cron:Publish] Found ${posts.length} posts to publish`);
 
-        // Publish them in sequence
+        // 2. Publish them in sequence
         const results = [];
         for (const post of posts) {
             try {
@@ -53,10 +55,41 @@ export async function GET(request: Request) {
             }
         }
 
+        // 3. BACKFILL MISSING IMAGES
+        // Look for scheduled posts that need images but don't have them yet
+        const { data: missingImages } = await supabase
+            .from("posts")
+            .select("id, image_prompt")
+            .eq("status", "scheduled")
+            .is("image_url", null)
+            .not("image_prompt", "is", null)
+            .limit(2); // Process 2 per run to avoid timeout
+
+        if (missingImages && missingImages.length > 0) {
+            console.log(`[Cron:Publish] Backfilling ${missingImages.length} images`);
+            for (const post of missingImages) {
+                try {
+                    const imageBuffer = await generateImage(post.image_prompt!);
+                    const filename = `${post.id}_${Date.now()}.webp`;
+                    const imageUrl = await uploadPostImage(imageBuffer, filename);
+
+                    await supabase
+                        .from("posts")
+                        .update({ image_url: imageUrl })
+                        .eq("id", post.id);
+
+                    console.log(`[Cron:Publish] ✅ Backfilled image for post ${post.id}`);
+                } catch (imgErr: any) {
+                    console.error(`[Cron:Publish] Failed to backfill image for ${post.id}:`, imgErr.message);
+                }
+            }
+        }
+
         return NextResponse.json({
             success: true,
             processed: posts.length,
-            results
+            results,
+            backfilled_images: missingImages?.length || 0
         });
 
     } catch (error: any) {
