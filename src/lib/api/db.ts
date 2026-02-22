@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { generateTopicContent } from "@/lib/services/pipeline-runner";
+import { getCurrentProviderName } from "@/lib/ai/provider";
 import type { Pipeline, Topic, Post, PlatformConnection } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 
@@ -419,4 +420,8 @@ export async function getDashboardStats() {
         published_this_week: number;
         platforms_connected: number;
     };
+}
+
+export async function getAIStatus(): Promise<string> {
+    return getCurrentProviderName();
 }

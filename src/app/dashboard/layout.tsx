@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
-import { LogOut } from "lucide-react";
+import { LogOut, Cpu } from "lucide-react";
+import { getAIStatus } from "@/lib/api/db";
 
 // Navigation items
 const navItems = [
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [aiStatus, setAiStatus] = useState<string>("Loading engine...");
 
     useEffect(() => {
         const supabase = createClient();
@@ -56,6 +58,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         };
 
         initUser();
+
+        // Fetch AI Status
+        getAIStatus().then(setAiStatus).catch(() => setAiStatus("Unknown Engine"));
 
         // 2. Auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -143,6 +148,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                         })}
                     </ul>
                 </nav>
+
+                {/* AI Status Indicator */}
+                <div className="px-4 py-2 mx-4 mb-2 rounded-lg bg-violet-500/5 border border-violet-500/10 flex items-center gap-2">
+                    <Cpu className="h-3 w-3 text-violet-400" />
+                    <span className="text-[10px] uppercase tracking-wider text-violet-400/70 font-bold">Engine:</span>
+                    <span className="text-[10px] text-violet-300 truncate">{aiStatus}</span>
+                </div>
 
                 {/* User Menu */}
                 <div className="p-4 border-t border-border/50">
