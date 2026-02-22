@@ -20,7 +20,8 @@ async function generateWithHuggingFace(prompt: string): Promise<Buffer> {
     console.log(`[ImageProvider] Attempting Hugging Face generation...`);
 
     // Using FLUX.1-schnell (high speed, high quality)
-    const url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
+    // Updated to the correct router endpoint format: /hf-inference/models/
+    const url = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell";
 
     const response = await fetch(url, {
         method: "POST",
